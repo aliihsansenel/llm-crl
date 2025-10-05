@@ -1,0 +1,96 @@
+import React, { useState } from "react";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "../components/ui/tabs";
+import { Button } from "../components/ui/button";
+import { signInWithEmail, signUpWithEmail } from "../lib/supabase";
+
+export default function AuthPage() {
+  const [active, setActive] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    const res = await signInWithEmail(email, password);
+    if (res.error) {
+      setMessage(res.error.message || "Login failed");
+      return;
+    }
+    setMessage("Logged in. Please wait for redirect (not implemented).");
+  }
+
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    const res = await signUpWithEmail(email, password);
+    if (res.error) {
+      setMessage(res.error.message || "Signup failed");
+      return;
+    }
+    setMessage("Signed up. Please check your email to confirm.");
+  }
+
+  return (
+    <div className="max-w-md mx-auto p-6">
+      <Tabs
+        value={active}
+        onValueChange={(v: any) =>
+          setActive(v === "signup" ? "signup" : "login")
+        }
+      >
+        <TabsList>
+          <TabsTrigger value="login">Login</TabsTrigger>
+          <TabsTrigger value="signup">Sign up</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="login">
+          <form onSubmit={handleLogin} className="flex flex-col gap-3">
+            <label className="text-sm">Email</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input"
+            />
+            <label className="text-sm">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input"
+            />
+            <Button type="submit">Login</Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="signup">
+          <form onSubmit={handleSignup} className="flex flex-col gap-3">
+            <label className="text-sm">Email</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input"
+            />
+            <label className="text-sm">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input"
+            />
+            <Button type="submit">Sign up</Button>
+          </form>
+        </TabsContent>
+      </Tabs>
+
+      {message && (
+        <div className="mt-4 text-sm text-muted-foreground">{message}</div>
+      )}
+    </div>
+  );
+}
