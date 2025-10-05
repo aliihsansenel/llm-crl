@@ -326,6 +326,31 @@ export async function addVocabToPrivateList(userId: string, vocabId: number) {
   return { data: res.data };
 }
 
+// Helper: create a new global vocab (owned by user) and add it into user's private list
+export async function createVocabAndAddToPrivateList(
+  userId: string,
+  itself: string
+) {
+  // create vocab with owner set to user
+  const insertRes = await supabase
+    .from("vocabs")
+    .insert({ itself, owner_id: userId })
+    .select("id")
+    .maybeSingle();
+  if (insertRes.error || !insertRes.data) {
+    return { error: insertRes.error || new Error("failed to create vocab") };
+  }
+  const vocabId = insertRes.data.id;
+
+  // add created vocab to private list
+  const addRes = await addVocabToPrivateList(userId, vocabId);
+  if (addRes.error) {
+    // non-fatal in UX, but return error info so caller can decide how to inform user
+    return { error: addRes.error, vocabId };
+  }
+  return { data: { vocabId, added: addRes.data } };
+}
+
 // Helper: remove vocab from private list or delete all occurrences + attempt to delete vocab and owned meanings per business rules
 export async function removeVocabFromPrivateList(
   userId: string,

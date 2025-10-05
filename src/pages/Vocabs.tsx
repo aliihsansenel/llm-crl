@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
 import supabase, {
   ensureUserResources,
-  addVocabToPrivateList,
   removeVocabFromPrivateList,
+  createVocabAndAddToPrivateList,
 } from "../lib/supabase";
 
 type Vocab = {
@@ -15,6 +15,53 @@ export default function VocabsPage() {
   const [vocabItems, setVocabItems] = useState<Vocab[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newVocabText, setNewVocabText] = useState("");
+
+  async function handleStartAdd() {
+    setError(null);
+    setAdding(true);
+  }
+
+  function handleCancelAdd() {
+    setAdding(false);
+    setNewVocabText("");
+  }
+
+  async function handleConfirmAdd() {
+    setError(null);
+    const text = newVocabText.trim();
+    if (!text) {
+      setError("Please enter a vocabulary word.");
+      return;
+    }
+    try {
+      setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const userId = user?.id;
+      if (!userId) {
+        setError("You must be signed in to perform this action.");
+        setLoading(false);
+        return;
+      }
+      const res = await createVocabAndAddToPrivateList(userId, text);
+      if (res?.error) {
+        console.warn("create/add error", res.error);
+        setError("Failed to add vocabulary (see console).");
+      } else {
+        // success: reload list
+        await loadPrivateVocabs();
+        setAdding(false);
+        setNewVocabText("");
+      }
+    } catch (err: any) {
+      setError(err?.message || String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function loadPrivateVocabs() {
     setLoading(true);
@@ -57,7 +104,9 @@ export default function VocabsPage() {
 
       if (itemsErr) throw itemsErr;
 
-      const ids: number[] = (itemsRes || []).map((r: any) => r.vocab_id);
+      const ids: number[] = (itemsRes || []).map(
+        (r: { vocab_id: number }) => r.vocab_id
+      );
       if (!ids.length) {
         setVocabItems([]);
         setLoading(false);
@@ -111,8 +160,9 @@ export default function VocabsPage() {
       }
       // refresh list
       await loadPrivateVocabs();
-    } catch (err: any) {
-      setError(err?.message || String(err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -124,9 +174,32 @@ export default function VocabsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">
-        My Vocabulary (Private List)
-      </h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">My Vocabulary (Private List)</h1>
+        <div>
+          {!adding ? (
+            <Button onClick={handleStartAdd} size="sm">
+              Add New
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {adding && (
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            className="border rounded px-2 py-1"
+            value={newVocabText}
+            onChange={(e) => setNewVocabText(e.target.value)}
+            placeholder="Type new vocabulary..."
+          />
+          <Button size="sm" onClick={handleConfirmAdd}>
+            Confirm
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCancelAdd}>
+            Cancel
+          </Button>
+        </div>
+      )}
       {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
       {!vocabItems.length ? (
         <div className="text-sm text-muted-foreground">
