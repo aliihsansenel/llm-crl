@@ -1,0 +1,91 @@
+Technical details of frontend of the llm-crl web app project:
+This is a react typescript frontend project.
+Supabase db used primarily for user-db interactions.
+For client runtime, there are 3 roles, anon (user who have not logged in), standart_user (as a value jwt token's user_role key), admin (as a value jwt token's user_role key).
+As a deducted role I can say "authenticated" role. "standart_user" and "admin" are authenticated users.
+Table access control managed inside Supabase, however client runtime (this frontend project) should be aware of which db operations is permitted based on role of user and based on the detailed explanation in this file for best user experience.
+
+Project's bussiness logic:
+  Users can create vocabulary, add meanings to vocabulary item, create vocabulary lists, add/remove item from own lists, can subscribe to other users' lists.
+  Users can create reading and listening material (rl_item) for vocabulary and meaning, can create lists for rl_items, add/remove item from own lists, can subscribe to other users' lists.
+  Implementations for Creating reading/listening material and corresponding lists are subject to another phase so Coder LLM should not implement pages or components for now.
+
+
+
+Tables' column details explained in another file, in that file rls policies or column based rectrictions are not written. However some of the rls policies, and column based restrictions explained here,
+Tables and interactions of users with different roles (this sections have code creation instructions for Coder LLM):
+
+auth.users (table): This table built-in supabase table for user management. id column of this table is referenced by multiple tables of my project, every table except this under public schema.
+
+admins (table): only authenticated users can see, no one can change or delete table items.
+
+levels (table): no one can change or delete table items, users will use this table for level lookup. 
+
+settings (table): settings of authenticated users, user can change own settings. auto_confirm (1, 2) columns holds boolean and will be used for auto confirms. In need they can be sequentially populated.
+
+profiles (table): profiles of authenticated users, user can change own profiles
+
+tokens (table): authenticated users can see own admin can see anyone's tokens. Bu no one can update tokens table (in frontend).
+
+p_vocab_lists (table): authenticated users can create only one private (p) vocab list for themselves. This lists are nameless. A standart_user can only use own private list.
+
+p_vocab_list_items (table): authenticated users will use this table to add/remove vocab items to their private lists.
+
+vocab_lists (table): Public vocab lists authenticated users can create.
+
+vocab_list_items (table): Items of public vocabulary lists. Only owner or admin can add/remove items of these.
+
+vocab_lists_sub (table): A authenticated user can subscribe to others' lists but can not sub to own list.
+
+vocabs (table): User can create or delete vocabulary but can not update.
+
+meanings (table): authenticated users can attach meanings to a vocabulary item (vocabulary item can be owned by others). There will no dedicated page users can list meanings. Meanings can be visible under vocabulary they attached to.
+
+
+These tables' code implementation is for another phase of the project, so do not create any page or logic implementation for these table:
+
+p_rl_list_items (table):
+
+p_rl_lists (table):
+
+rl_item_vocabs_and_meanings (table):
+
+rl_items (table):
+
+rl_list_items (table):
+
+rl_lists (table):
+
+rl_lists_sub (table):
+
+Finally, instructions for building ui for Coder LLM:
+
+- use react with typescript
+- do not use npm package manager directly, use pnpm instead.
+- primarily shadcn and its indirect dependencies like tailwind css and radix elements should be preferred for building ui.
+- Developer have installed some components already. If necessary, install shadcn components by executing commands like "pnpm dlx shadcn@latest add button"
+- react-router (7) "data" mode should be used for navigation and page routing, do not use "framework" or "declarative" mode.
+- @supabase/supabase-js supabase client should be used for crud db queries.
+
+The pages developer wanted to be built by Coder LLM:
+- Drawer (shadcn) will be visible whatever the current page is. Drawer have My Profile, Discover, My Vocabulary, Reading/Listening Material(empty link) 
+- Login page: /login user can login with email pass pair.
+- Sign up page: /signup anon users can sign up with email pass pair.
+- Signup and Login view should be accesible with tab (shadcn) switch in same page (on click url changes if possible)
+- Profile page: for own /profile /profile?id={other's id}, users can view and update profile, after profile details place a settings and user can update it. (settings in others' profile page is hidden)
+- My lists page: / is root path,
+in /vocabs user will see own vocabulary words (do not list vocabs that owner_id is same with user, list p_vocab_list_items of owned p_vocab_list), and can remove by clicking a button.
+in /lists user will see own vocab_lists and subscribed lists, here user can create or remove own existing lists or subscribtions.
+- Profile page: /profile 
+- /discover/ page have two tabs pointing /discover/vocabs and /discover/lists
+- /discover/vocabs page of all vocabulary randomly selected (by any owner_id),
+- /discover/lists page all lists recently randomly selected (by any owner_id),
+
+user actions:
+- Scenario: If a user wants to remove a vocabulary (in owned p_vocab_list_items) a popup asks if he/she also wants to remove attached owned meanings and presence in owned lists. User can choose "remove from this list only" or "remove all occurences". If user selected second, attempt to remove vocab item from owned vocab_list_items and owned meanings. Finally regardless of which option the user selected attempt to delete vocab itself (from vocabs table) supabase can reject if another uses this vocab so if you rejected because of this reason this should be ignored and not displayed to user as error.
+- Scenario: if a user wants to delete an owned vobaulary list: If user did not activate toggle of the auto_confirm option in settings table (you choose which one), a popup must shown to user asks to confirm understanded "if another user have subscribed to the list can not be deleted, you will be drop ownership". User can cancel or proceed the operation but if he/she checks "do not show again" checkbox corresponding auto_confirm should be set to true. Then if proceed selected regardless of the state of the cehckbox attempt to delete vocab_list itself. If supabase rejects just drop the ownership of vocab_list supabase will allows it anyway.
+- If user in discovery in /discover/vocabs section must provided buttons so user can save vocabulary to own private list (do not ask to which public list he can insert to because it will prevent user can squantially save vocabulary so just add to his private list )
+- If user in discovery in /discover/lists section must provided buttons so user can subscribe to lists.
+- If a user clicks a vocabulary a popup is displayed showing vocabulary with its meanings, in popup put a button to dedicated page of clicked vocabulary /vocabs?={id} url is valid for own and other's lists, notice /discover is not preceded by /vocab even it is list of someone else.
+- Same goes same with /lists if clicked popup shows items and button to go dedicated page, in dedicated page's url id is provided then it is a dedicated page.
+- If user's personal profile, settings, personal vocab list does not exist (maybe they could not be automatically created on signup) create then re-fetch.

@@ -1,0 +1,1060 @@
+{
+  "vocab_lists": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": "'Unnamed Vocab List'::text",
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "desc",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "modified_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 6
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "vocab_list_owner_id_fkey",
+        "columns": ["owner_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "rl_lists": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "desc",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "modified_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 6
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "rl_lists_owner_id_fkey",
+        "columns": ["owner_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "vocabs": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "itself",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "vocab_owner_id_fkey",
+        "columns": ["owner_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "profiles": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "username",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "first_name",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "last_name",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "bio",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 6
+      }
+    ],
+    "primary_key": ["user_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "profiles_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "tokens": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "free",
+        "data_type": "smallint",
+        "is_nullable": "NO",
+        "column_default": "'100'::smallint",
+        "udt_name": "int2",
+        "character_maximum_length": null,
+        "numeric_precision": 16,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "paid",
+        "data_type": "smallint",
+        "is_nullable": "NO",
+        "column_default": "'0'::smallint",
+        "udt_name": "int2",
+        "character_maximum_length": null,
+        "numeric_precision": 16,
+        "numeric_scale": 0,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "free_renewal_date",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      }
+    ],
+    "primary_key": ["user_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "tokens_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "rl_item_vocabs_and_meanings": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "rl_item_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "vocab_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "meaning_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 4
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "rl_item_vocabs_and_meanings_meaning_id_fkey",
+        "columns": ["meaning_id"],
+        "foreign_table": "meanings",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "rl_item_vocabs_and_meanings_rl_item_id_fkey",
+        "columns": ["rl_item_id"],
+        "foreign_table": "rl_items",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "rl_item_vocabs_and_meanings_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "meanings": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "vocab_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "itself",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "sentences",
+        "data_type": "ARRAY",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "_text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 5
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "meanings_owner_id_fkey",
+        "columns": ["owner_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      },
+      {
+        "constraint_name": "meanings_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "admins": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      }
+    ],
+    "primary_key": ["user_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "admins_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "rl_items": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "instructions",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "r_item",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "l_item_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "delete_requested",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "false",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 6
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 7
+      },
+      {
+        "column_name": "modified_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 8
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": null
+  },
+  "vocab_list_items": {
+    "columns": [
+      {
+        "column_name": "vocab_list_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "vocab_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["vocab_list_id", "vocab_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "vocab_list_items_vocab_list_id_fkey",
+        "columns": ["vocab_list_id"],
+        "foreign_table": "vocab_lists",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "vocab_list_items_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "levels": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "smallint",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int2",
+        "character_maximum_length": null,
+        "numeric_precision": 16,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "itself",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": null
+  },
+  "rl_lists_sub": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "rl_list_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["user_id", "rl_list_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "rl_lists_sub_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      },
+      {
+        "constraint_name": "rl_lists_sub_rl_list_id_fkey",
+        "columns": ["rl_list_id"],
+        "foreign_table": "rl_lists",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "p_vocab_lists": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": "auth.uid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "modified_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "p_vocab_list_owner_id_fkey",
+        "columns": ["owner_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  },
+  "rl_list_items": {
+    "columns": [
+      {
+        "column_name": "rl_list_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "rl_item_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["rl_list_id", "rl_item_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "rl_list_items_rl_list_id_fkey",
+        "columns": ["rl_list_id"],
+        "foreign_table": "rl_lists",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "rl_list_items_rl_item_id_fkey",
+        "columns": ["rl_item_id"],
+        "foreign_table": "rl_items",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "p_rl_list_items": {
+    "columns": [
+      {
+        "column_name": "p_rl_list_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "rl_item_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["p_rl_list_id", "rl_item_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "p_rl_list_items_p_rl_list_id_fkey",
+        "columns": ["p_rl_list_id"],
+        "foreign_table": "rl_lists",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "p_rl_list_items_rl_item_id_fkey",
+        "columns": ["rl_item_id"],
+        "foreign_table": "rl_items",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "settings": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "level_id",
+        "data_type": "smallint",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "int2",
+        "character_maximum_length": null,
+        "numeric_precision": 16,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "auto_confirm_1",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "false",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "auto_confirm_2",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "false",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      }
+    ],
+    "primary_key": ["user_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "settings_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      },
+      {
+        "constraint_name": "settings_level_id_fkey",
+        "columns": ["level_id"],
+        "foreign_table": "levels",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "p_vocab_list_items": {
+    "columns": [
+      {
+        "column_name": "p_vocab_list_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "vocab_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["p_vocab_list_id", "vocab_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "p_vocab_list_items_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "p_vocab_list_items_p_vocab_list_id_fkey",
+        "columns": ["p_vocab_list_id"],
+        "foreign_table": "p_vocab_lists",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "vocab_lists_sub": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "vocab_list_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      }
+    ],
+    "primary_key": ["user_id", "vocab_list_id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "vocab_lists_sub_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      },
+      {
+        "constraint_name": "vocab_lists_sub_vocab_list_id_fkey1",
+        "columns": ["vocab_list_id"],
+        "foreign_table": "vocab_lists",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "vocab_lists_sub_vocab_list_id_fkey",
+        "columns": ["vocab_list_id"],
+        "foreign_table": "vocab_lists",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "p_rl_lists": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "owner_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "modified_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      }
+    ],
+    "primary_key": ["id"],
+    "foreign_keys": [
+      {
+        "constraint_name": "p_rl_lists_owner_id_fkey",
+        "columns": ["owner_id"],
+        "foreign_table": null,
+        "foreign_columns": null
+      }
+    ]
+  }
+}
