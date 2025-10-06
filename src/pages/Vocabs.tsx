@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import supabase, {
   ensureUserResources,
   removeVocabFromPrivateList,
@@ -194,10 +195,12 @@ export default function VocabsPage() {
       </div>
       {adding && (
         <div className="mb-4 flex items-center gap-2">
-          <input
-            className="border rounded px-2 py-1"
+          <Input
+            className="flex-1"
             value={newVocabText}
-            onChange={(e) => setNewVocabText(e.target.value)}
+            onChange={(e) =>
+              setNewVocabText((e.target as HTMLInputElement).value)
+            }
             placeholder="Type new vocabulary..."
           />
           <Button size="sm" onClick={handleConfirmAdd}>

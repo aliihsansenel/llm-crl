@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import supabase, { ensureUserResources } from "../lib/supabase";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 
 function errToMessage(err: unknown): string {
   if (!err) return String(err);
@@ -193,46 +195,60 @@ export default function ProfilePage() {
         <form onSubmit={handleProfileSave} className="space-y-3 mb-6">
           <label className="block">
             <div className="text-sm font-medium">Username</div>
-            <input
+            <Input
               value={profile.username}
               onChange={(e) =>
-                setProfile({ ...profile, username: e.target.value })
+                setProfile({
+                  ...profile,
+                  username: (e.target as HTMLInputElement).value,
+                })
               }
-              className="input mt-1 w-full"
+              className="mt-1 w-full"
               disabled={!isOwn}
             />
           </label>
 
           <label className="block">
             <div className="text-sm font-medium">First name</div>
-            <input
+            <Input
               value={profile.first_name ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, first_name: e.target.value })
+                setProfile({
+                  ...profile,
+                  first_name: (e.target as HTMLInputElement).value,
+                })
               }
-              className="input mt-1 w-full"
+              className="mt-1 w-full"
               disabled={!isOwn}
             />
           </label>
 
           <label className="block">
             <div className="text-sm font-medium">Last name</div>
-            <input
+            <Input
               value={profile.last_name ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, last_name: e.target.value })
+                setProfile({
+                  ...profile,
+                  last_name: (e.target as HTMLInputElement).value,
+                })
               }
-              className="input mt-1 w-full"
+              className="mt-1 w-full"
               disabled={!isOwn}
             />
           </label>
 
           <label className="block">
             <div className="text-sm font-medium">Bio</div>
-            <textarea
+            <Textarea
               value={profile.bio ?? ""}
-              onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-              className="input mt-1 w-full h-28"
+              onChange={(e) =>
+                setProfile({
+                  ...profile,
+                  bio: (e.target as HTMLTextAreaElement).value,
+                })
+              }
+              className="mt-1 w-full h-28"
               disabled={!isOwn}
             />
           </label>

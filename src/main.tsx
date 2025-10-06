@@ -119,12 +119,30 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function Layout() {
-  const [user, setUser] = useState<unknown | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [tokens, setTokens] = useState<{ free: number; paid: number } | null>(
     null
   );
   // Controlled drawer state so header can toggle it from outside vaul trigger
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Logout helper used by drawer button (shows confirm popup then signs out)
+  async function handleLogout() {
+    // simple confirm popup as requested (not tied to auto_confirm settings)
+    const ok = window.confirm("Are you sure you want to log out?");
+    if (!ok) return;
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      /* ignore sign out errors */
+    } finally {
+      setUser(null);
+      setTokens(null);
+      // navigate to login page after signout
+      navigate("/login", { replace: true });
+    }
+  }
 
   // Determine default drawer open based on viewport (desktop default open)
   useEffect(() => {
@@ -220,6 +238,16 @@ function Layout() {
             <Link to="/lists" className="text-sm hover:underline">
               Reading/Listening Material
             </Link>
+
+            {user && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-sm hover:underline text-left mt-2"
+              >
+                Log out
+              </button>
+            )}
           </nav>
 
           <DrawerFooter>

@@ -63,11 +63,14 @@ export function DrawerTrigger({
   const ctx = React.useContext(DrawerContext);
   return (
     <button
+      type="button"
       data-slot="drawer-trigger"
       {...rest}
       onClick={(e) => {
+        e.stopPropagation();
         rest.onClick?.(e);
-        ctx?.setOpen?.(true);
+        // toggle drawer instead of always opening so trigger can both open and close
+        ctx?.setOpen?.(!ctx?.open);
       }}
     >
       {children}
@@ -84,9 +87,12 @@ export function DrawerClose({
   const ctx = React.useContext(DrawerContext);
   return (
     <button
+      type="button"
+      aria-label="Close drawer"
       data-slot="drawer-close"
       {...rest}
       onClick={(e) => {
+        e.stopPropagation();
         rest.onClick?.(e);
         ctx?.setOpen?.(false);
       }}
@@ -121,14 +127,21 @@ export function DrawerContent({
   const ctx = React.useContext(DrawerContext);
   const open = ctx?.open ?? false;
 
+  // On mobile we want the overlay behavior (DrawerOverlay handles clicks).
+  // On desktop we keep the drawer in layout flow (md:static) but allow collapsing:
+  // use responsive translate classes so md viewport also respects `open`.
+  const translateClass = open
+    ? "translate-x-0 md:translate-x-0"
+    : "-translate-x-full md:-translate-x-full";
+
   return (
     <>
       <DrawerOverlay />
       <aside
         data-slot="drawer-content"
         className={cn(
-          "fixed left-0 top-0 z-50 h-full w-64 transform bg-background shadow-lg transition-transform duration-200 md:static md:translate-x-0 md:shadow-none",
-          open ? "translate-x-0" : "-translate-x-full",
+          "fixed left-0 top-0 z-50 h-full w-64 transform bg-background shadow-lg transition-transform duration-200 md:static md:shadow-none",
+          translateClass,
           "md:block",
           className
         )}

@@ -6,6 +6,7 @@ import {
   TabsContent,
 } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { signInWithEmail, signUpWithEmail } from "../lib/supabase";
 
 export default function AuthPage() {
@@ -52,17 +53,19 @@ export default function AuthPage() {
         <TabsContent value="login">
           <form onSubmit={handleLogin} className="flex flex-col gap-3">
             <label className="text-sm">Email</label>
-            <input
+            <Input
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input"
+              onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+              className="w-full"
             />
             <label className="text-sm">Password</label>
-            <input
+            <Input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
+              onChange={(e) =>
+                setPassword((e.target as HTMLInputElement).value)
+              }
+              className="w-full"
             />
             <Button type="submit">Login</Button>
           </form>
@@ -71,17 +74,19 @@ export default function AuthPage() {
         <TabsContent value="signup">
           <form onSubmit={handleSignup} className="flex flex-col gap-3">
             <label className="text-sm">Email</label>
-            <input
+            <Input
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input"
+              onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+              className="w-full"
             />
             <label className="text-sm">Password</label>
-            <input
+            <Input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
+              onChange={(e) =>
+                setPassword((e.target as HTMLInputElement).value)
+              }
+              className="w-full"
             />
             <Button type="submit">Sign up</Button>
           </form>
