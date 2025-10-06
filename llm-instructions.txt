@@ -94,13 +94,22 @@ user actions:
 Iteration context for Coder LLM:
 - Some code written by Coder LLM so some of the previous (write code for this and this type) instructions could be not valid anymore so just implement after you see "New implementation request(s)", but consider every rule above since they are still valid.
 
-Implementations made by Coder LLM previously:
+Implementations made by Coder LLM previously (they could be implemented incomplete, check out new requests below):
 - in /vocabs vocab items of private list is listed, I can remove but I need button to add, if user clicks add new let user type and on confirm add to private list and global vocab list.
 - Drawer implemented previosly by Coder LLM, deactivated later for some problems, Activate it I want it to be visible by default and can be collapsed. And fix its size it was not right.
 - root path should navigate to /vocabs path if logged in otherwise navigate to login page.
 - I see when vocabulary added to private list client re-fetchs updated list that is unnecessary. If there are same behaviours in different pages also fix them.
-
-New implementation request(s) for Coder LLM:
-- Make every page (except sign up and login) navigate to login page if not logged in
+- Make every page (except sign up and login) navigate to login page if not logged in.
 - Drawer does not fill viewport vertically please fix it.
 - Also add "Login & Sign up" link to drawer as first item visible to anon (who are not logged in yet even if he signed up).
+
+New implementation request(s) for Coder LLM:
+- revert this behaviour: Make every page (except sign up and login) navigate to login page if not logged in.
+Only /profile and /vocabs pages should navigate to /login if not logged in.
+- navigation-menu component (shadcn) installed, place it top of pages.
+- at very right of nav menu place import { UserCircle } from "@mynaui/icons-react"; on click it should navigate to profile page. If not logged in import { UserX } from "@mynaui/icons-react"; should be displayed and onclick navigate to login page.
+- at right of the navbar and left beside of profile icon write free tokens and paid tokens (fetch data from tokens table but do not fetch again for every page navigation)
+- at very left of navigation menu add menu icon from import { Menu } from "@mynaui/icons-react"; (required library installed). This icon will display drawer on click.
+- Drawer comes its place bottom to top, it should be left to right.
+- Drawer opens top of page and dims page, I want it to push page content to right. In desktop size it should be opened default.
+- Only in mobile viewport size top level drawer and dimming are wanted.

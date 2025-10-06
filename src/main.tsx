@@ -27,6 +27,14 @@ import {
   DrawerClose,
 } from "./components/ui/drawer";
 
+import {
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuLink,
+} from "./components/ui/navigation-menu";
+
+import { Menu, UserCircle, UserX } from "@mynaui/icons-react";
+
 import supabase from "./lib/supabase";
 
 import "./index.css";
@@ -66,7 +74,8 @@ function RootRedirect() {
       if (user) {
         navigate("/vocabs", { replace: true });
       } else {
-        navigate("/login", { replace: true });
+        // For anonymous users send them to the public discover page
+        navigate("/discover", { replace: true });
       }
     })();
   }, [navigate]);
@@ -111,19 +120,65 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function Layout() {
   const [user, setUser] = useState<unknown | null>(null);
+  const [tokens, setTokens] = useState<{ free: number; paid: number } | null>(
+    null
+  );
+  // Controlled drawer state so header can toggle it from outside vaul trigger
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Determine default drawer open based on viewport (desktop default open)
+  useEffect(() => {
+    const m = window.matchMedia("(min-width: 768px)");
+    setDrawerOpen(m.matches);
+    const onChange = (ev: MediaQueryListEvent) => setDrawerOpen(ev.matches);
+    m.addEventListener?.("change", onChange);
+    return () => m.removeEventListener?.("change", onChange);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+
+    async function fetchInitial() {
       const {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
       if (!mounted) return;
       setUser(currentUser ?? null);
-    })();
+      if (currentUser?.id) {
+        const { data: tokenRow, error } = await supabase
+          .from("tokens")
+          .select("free,paid")
+          .eq("user_id", currentUser.id)
+          .maybeSingle();
+        if (!error && tokenRow) {
+          setTokens({ free: tokenRow.free, paid: tokenRow.paid });
+        }
+      }
+    }
+
+    fetchInitial();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user?.id) {
+        // fetch tokens once on auth change (sign in)
+        (async () => {
+          try {
+            const { data: tokenRow, error } = await supabase
+              .from("tokens")
+              .select("free,paid")
+              .eq("user_id", session.user.id)
+              .maybeSingle();
+            if (!error && tokenRow) {
+              setTokens({ free: tokenRow.free, paid: tokenRow.paid });
+            }
+          } catch {
+            /* ignore */
+          }
+        })();
+      } else {
+        setTokens(null);
+      }
     });
 
     return () => {
@@ -134,15 +189,13 @@ function Layout() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Persistent Drawer: visible by default and collapsible */}
-      <Drawer defaultOpen>
+      {/* Persistent Drawer: visible by default on desktop and collapsible */}
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent className="data-[vaul-drawer-direction=left]:w-64 w-64 sm:max-w-sm">
           <DrawerHeader>
             <div className="flex items-center justify-between w-full">
               <DrawerTitle>llm-crl</DrawerTitle>
-              <DrawerClose asChild>
-                <button aria-label="Close">✕</button>
-              </DrawerClose>
+              <DrawerClose>✕</DrawerClose>
             </div>
           </DrawerHeader>
 
@@ -177,8 +230,71 @@ function Layout() {
         </DrawerContent>
       </Drawer>
 
-      <main className="flex-1">
-        <Outlet />
+      <main className="flex-1 flex flex-col min-h-screen">
+        {/* Top navigation menu */}
+        <header className="w-full border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="h-14 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* Drawer menu toggle */}
+                <button
+                  aria-label="Toggle menu"
+                  className="p-2 rounded hover:bg-accent/20"
+                  onClick={() => setDrawerOpen((s) => !s)}
+                >
+                  <Menu className="size-5" />
+                </button>
+                {/* Navigation menu placed at top */}
+                <NavigationMenu>
+                  <NavigationMenuList className="flex gap-2">
+                    <NavigationMenuLink asChild>
+                      <Link to="/vocabs" className="text-sm">
+                        My Vocabulary
+                      </Link>
+                    </NavigationMenuLink>
+                    <NavigationMenuLink asChild>
+                      <Link to="/lists" className="text-sm">
+                        Lists
+                      </Link>
+                    </NavigationMenuLink>
+                    <NavigationMenuLink asChild>
+                      <Link to="/discover" className="text-sm">
+                        Discover
+                      </Link>
+                    </NavigationMenuLink>
+                  </NavigationMenuList>
+                </NavigationMenu>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="text-sm">
+                  Free:{" "}
+                  <span className="font-medium">{tokens?.free ?? "-"}</span>
+                </div>
+                <div className="text-sm">
+                  Paid:{" "}
+                  <span className="font-medium">{tokens?.paid ?? "-"}</span>
+                </div>
+
+                <div>
+                  {user ? (
+                    <Link to="/profile" aria-label="Profile">
+                      <UserCircle className="size-6" />
+                    </Link>
+                  ) : (
+                    <Link to="/login" aria-label="Login">
+                      <UserX className="size-6" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
@@ -194,14 +310,17 @@ const router = createBrowserRouter([
       { path: "login", element: <AuthPage /> },
       { path: "signup", element: <AuthPage /> },
       {
+        // only /profile requires auth
         path: "profile",
         element: <RequireAuth>{<ProfilePage />}</RequireAuth>,
       },
+      // only /vocabs requires auth (and its detail view)
       { path: "vocabs", element: <RequireAuth>{<VocabsRoute />}</RequireAuth> },
-      { path: "lists", element: <RequireAuth>{<ListsRoute />}</RequireAuth> },
+      // lists and discover no longer force redirect to login here
+      { path: "lists", element: <ListsRoute /> },
       {
         path: "discover",
-        element: <RequireAuth>{<DiscoverPage />}</RequireAuth>,
+        element: <DiscoverPage />,
       },
     ],
   },
