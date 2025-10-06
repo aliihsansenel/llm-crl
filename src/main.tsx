@@ -34,6 +34,17 @@ import {
 } from "./components/ui/navigation-menu";
 
 import { Menu, UserCircle, UserX } from "@mynaui/icons-react";
+import { Button } from "./components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "./components/ui/alert-dialog";
 
 import supabase from "./lib/supabase";
 
@@ -127,11 +138,11 @@ function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Logout helper used by drawer button (shows confirm popup then signs out)
-  async function handleLogout() {
-    // simple confirm popup as requested (not tied to auto_confirm settings)
-    const ok = window.confirm("Are you sure you want to log out?");
-    if (!ok) return;
+  // Logout helper: confirmation handled via AlertDialog
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  async function performLogout() {
+    // close dialog immediately
+    setLogoutOpen(false);
     try {
       await supabase.auth.signOut();
     } catch {
@@ -240,13 +251,13 @@ function Layout() {
             </Link>
 
             {user && (
-              <button
+              <Button
                 type="button"
-                onClick={handleLogout}
-                className="text-sm hover:underline text-left mt-2"
+                onClick={() => setLogoutOpen(true)}
+                className="w-full bg-black text-white text-sm text-left mt-2"
               >
                 Log out
-              </button>
+              </Button>
             )}
           </nav>
 
@@ -254,6 +265,23 @@ function Layout() {
             <div className="text-xs text-muted-foreground p-2">
               Signed-out view will show login/signup links on the main area.
             </div>
+
+            <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm log out</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to log out?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={performLogout}>
+                    Log out
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

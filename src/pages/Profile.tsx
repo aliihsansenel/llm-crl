@@ -4,6 +4,7 @@ import supabase, { ensureUserResources } from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import { Switch } from "../components/ui/switch";
 
 function errToMessage(err: unknown): string {
   if (!err) return String(err);
@@ -283,15 +284,15 @@ export default function ProfilePage() {
           ) : (
             <form onSubmit={handleSettingsSave} className="space-y-3">
               <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={settings.auto_confirm_1}
-                  onChange={(e) =>
+                  onCheckedChange={(val: boolean | undefined) =>
                     setSettings({
                       ...settings,
-                      auto_confirm_1: e.target.checked,
+                      auto_confirm_1: !!val,
                     })
                   }
+                  aria-label="Do not show delete-list confirm"
                 />
                 <span className="text-sm">
                   Do not show delete-list confirm (auto_confirm_1)
@@ -299,15 +300,15 @@ export default function ProfilePage() {
               </label>
 
               <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={settings.auto_confirm_2}
-                  onChange={(e) =>
+                  onCheckedChange={(val: boolean | undefined) =>
                     setSettings({
                       ...settings,
-                      auto_confirm_2: e.target.checked,
+                      auto_confirm_2: !!val,
                     })
                   }
+                  aria-label="Another auto confirm"
                 />
                 <span className="text-sm">
                   Another auto confirm (auto_confirm_2)

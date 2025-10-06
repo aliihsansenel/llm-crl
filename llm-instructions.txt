@@ -111,9 +111,14 @@ Only /profile and /vocabs pages should navigate to /login if not logged in.
 - Drawer comes its place bottom to top, it should be left to right.
 - Drawer opens top of page and dims page, I want it to push page content to right. In desktop size it should be opened default.
 - Only in mobile viewport size top level drawer and dimming are wanted.
-
-New implementation request(s) for Coder LLM:
 - Drawer should be closeable, close button inside drawer does not work.
 - ensure menu icon makes display drawer onclick (I can not check if this is working as I can not close to re-open).
 - add "Log out" link to drawer but should act like button that opens popup confirm box asking to log out (this corfirmation should not be linked to any auto_confirm settings).
 - inputs and textareas do not have border and it seems they are not shadcn components but fundamental html elements, turn them to shadcn components and ask for confirmation to developer before ending task.
+
+New implementation request(s) for Coder LLM:
+- Turn Log out link in drawer into black button
+- create alert (I installed pnpm dlx shadcn@latest add alert) beneath the login form to inform user login unsuccesfull, inf success ful navigate to /vocabs page.
+- turn every alert-confirmation behavour done with basic default js alert into alert-dialog (I installed pnpm dlx shadcn@latest add alert alert-dialog).
+- in /lists page under the title Owned Lists (notice these lists are vocab_lists not private) create a button "Create list" beneath the listed lists (even if there is not any list). on click insert to table vocab_list as request ongoing disable button and turn text into "Creating..." then after list created open list's dedicated page in new browser tab.
+- in dedicated list page user's saved vocabulary should be listed (last added to first added (reverse order) limit recently added 20 vocabulary items). Beside vocabulary "add" button to add to the list. make lower added vocabularies' opacity. And since added vocabularies listed in lists add remove button beside them. If there is no Item in users private vocab list. Write an alert (shadcn) and place a button to navigate user to /vocabs page.

@@ -7,6 +7,8 @@ import {
 } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { Alert, AlertDescription } from "../components/ui/alert";
+import { useNavigate } from "react-router-dom";
 import { signInWithEmail, signUpWithEmail } from "../lib/supabase";
 
 export default function AuthPage() {
@@ -14,6 +16,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -23,7 +26,8 @@ export default function AuthPage() {
       setMessage(res.error.message || "Login failed");
       return;
     }
-    setMessage("Logged in. Please wait for redirect (not implemented).");
+    // on success navigate to vocabs
+    navigate("/vocabs", { replace: true });
   }
 
   async function handleSignup(e: React.FormEvent) {
@@ -41,7 +45,7 @@ export default function AuthPage() {
     <div className="max-w-md mx-auto p-6">
       <Tabs
         value={active}
-        onValueChange={(v: any) =>
+        onValueChange={(v: string) =>
           setActive(v === "signup" ? "signup" : "login")
         }
       >
@@ -94,7 +98,9 @@ export default function AuthPage() {
       </Tabs>
 
       {message && (
-        <div className="mt-4 text-sm text-muted-foreground">{message}</div>
+        <Alert className="mt-4">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       )}
     </div>
   );

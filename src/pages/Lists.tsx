@@ -2,6 +2,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "../components/ui/alert-dialog";
 import supabase from "../lib/supabase";
 
 export default function ListsPage() {
@@ -9,6 +19,9 @@ export default function ListsPage() {
   const [subscribed, setSubscribed] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingListId, setDeletingListId] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   async function loadLists() {
     setLoading(true);
@@ -65,13 +78,19 @@ export default function ListsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleDelete(listId: number) {
-    if (
-      !confirm(
-        "Delete this list? If other users subscribed it cannot be deleted; proceed to drop ownership if delete rejected."
-      )
-    )
+  function handleDelete(listId: number) {
+    // Open confirmation dialog
+    setDeletingListId(listId);
+    setDeleteDialogOpen(true);
+  }
+
+  async function performDelete() {
+    const listId = deletingListId;
+    if (!listId) {
+      setDeleteDialogOpen(false);
       return;
+    }
+    setDeleteDialogOpen(false);
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -93,8 +112,33 @@ export default function ListsPage() {
     } catch (err: any) {
       console.warn(err);
     } finally {
+      setDeletingListId(null);
       await loadLists();
       setLoading(false);
+    }
+  }
+
+  async function createList() {
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await supabase
+        .from("vocab_lists")
+        .insert({})
+        .select("id")
+        .single();
+      if (res.error || !res.data) {
+        setError(res.error?.message || "Failed to create list");
+      } else {
+        const newId = res.data.id;
+        // open dedicated page in new tab
+        window.open(`/lists?id=${newId}`, "_blank");
+      }
+    } catch (err: any) {
+      setError(String(err));
+    } finally {
+      setCreating(false);
+      await loadLists();
     }
   }
 
@@ -160,9 +204,15 @@ export default function ListsPage() {
       ) : (
         <>
           <section className="mb-6">
-            <h2 className="font-semibold">Owned Lists</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Owned Lists</h2>
+              <Button size="sm" onClick={createList} disabled={creating}>
+                {creating ? "Creating..." : "Create list"}
+              </Button>
+            </div>
+
             {owned.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground mt-2">
                 No owned lists
               </div>
             ) : (
@@ -173,7 +223,14 @@ export default function ListsPage() {
                     className="flex items-center justify-between border p-3 rounded-md"
                   >
                     <div>
-                      <div className="font-medium">{l.name}</div>
+                      <a
+                        href={`/lists?id=${l.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium hover:underline"
+                      >
+                        {l.name}
+                      </a>
                       <div className="text-sm text-muted-foreground">
                         {l.desc}
                       </div>
@@ -196,7 +253,7 @@ export default function ListsPage() {
           <section>
             <h2 className="font-semibold">Subscribed Lists</h2>
             {subscribed.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground mt-2">
                 No subscriptions
               </div>
             ) : (
@@ -207,7 +264,14 @@ export default function ListsPage() {
                     className="flex items-center justify-between border p-3 rounded-md"
                   >
                     <div>
-                      <div className="font-medium">{l.name}</div>
+                      <a
+                        href={`/lists?id=${l.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium hover:underline"
+                      >
+                        {l.name}
+                      </a>
                       <div className="text-sm text-muted-foreground">
                         {l.desc}
                       </div>
@@ -226,6 +290,29 @@ export default function ListsPage() {
               </ul>
             )}
           </section>
+
+          <AlertDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete list</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Deleting this list will attempt to remove it. If other users
+                  subscribed the server may reject deletion; in that case we
+                  will attempt to drop ownership instead. This action cannot be
+                  undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={performDelete}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>
