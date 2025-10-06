@@ -1,4 +1,5 @@
-import { StrictMode, useEffect } from "react";
+import { StrictMode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
   createBrowserRouter,
@@ -72,7 +73,65 @@ function RootRedirect() {
   return null;
 }
 
+function RequireAuth({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!mounted) return;
+      if (!user) {
+        navigate("/login", { replace: true });
+      } else {
+        setChecking(false);
+      }
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        navigate("/login", { replace: true });
+      } else {
+        setChecking(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe?.();
+    };
+  }, [navigate]);
+
+  if (checking) return null;
+  return children;
+}
+
 function Layout() {
+  const [user, setUser] = useState<unknown | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setUser(currentUser ?? null);
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen flex">
       {/* Persistent Drawer: visible by default and collapsible */}
@@ -87,7 +146,15 @@ function Layout() {
             </div>
           </DrawerHeader>
 
-          <nav className="flex flex-col gap-2 p-4">
+          <nav className="flex flex-col gap-2 p-4 flex-1">
+            {!user ? (
+              <>
+                <Link to="/login" className="text-sm hover:underline">
+                  Login & Sign up
+                </Link>
+              </>
+            ) : null}
+
             <Link to="/profile" className="text-sm hover:underline">
               My Profile
             </Link>
@@ -126,10 +193,16 @@ const router = createBrowserRouter([
       { index: true, element: <RootRedirect /> },
       { path: "login", element: <AuthPage /> },
       { path: "signup", element: <AuthPage /> },
-      { path: "profile", element: <ProfilePage /> },
-      { path: "vocabs", element: <VocabsRoute /> },
-      { path: "lists", element: <ListsRoute /> },
-      { path: "discover", element: <DiscoverPage /> },
+      {
+        path: "profile",
+        element: <RequireAuth>{<ProfilePage />}</RequireAuth>,
+      },
+      { path: "vocabs", element: <RequireAuth>{<VocabsRoute />}</RequireAuth> },
+      { path: "lists", element: <RequireAuth>{<ListsRoute />}</RequireAuth> },
+      {
+        path: "discover",
+        element: <RequireAuth>{<DiscoverPage />}</RequireAuth>,
+      },
     ],
   },
 ]);
