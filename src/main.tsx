@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import {
   createBrowserRouter,
@@ -6,9 +6,9 @@ import {
   Link,
   Outlet,
   useSearchParams,
+  useNavigate,
 } from "react-router-dom";
 
-import HomePage from "./pages/Home";
 import AuthPage from "./pages/Auth";
 import ProfilePage from "./pages/Profile";
 import VocabsPage from "./pages/Vocabs";
@@ -25,6 +25,8 @@ import {
   DrawerTitle,
   DrawerClose,
 } from "./components/ui/drawer";
+
+import supabase from "./lib/supabase";
 
 import "./index.css";
 
@@ -53,12 +55,29 @@ function ListsRoute() {
   return <ListsPage />;
 }
 
+function RootRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        navigate("/vocabs", { replace: true });
+      } else {
+        navigate("/login", { replace: true });
+      }
+    })();
+  }, [navigate]);
+  return null;
+}
+
 function Layout() {
   return (
     <div className="min-h-screen flex">
-      {/* Persistent Drawer (now closable) */}
-      <Drawer>
-        <DrawerContent className="w-64">
+      {/* Persistent Drawer: visible by default and collapsible */}
+      <Drawer defaultOpen>
+        <DrawerContent className="data-[vaul-drawer-direction=left]:w-64 w-64 sm:max-w-sm">
           <DrawerHeader>
             <div className="flex items-center justify-between w-full">
               <DrawerTitle>llm-crl</DrawerTitle>
@@ -103,7 +122,8 @@ const router = createBrowserRouter([
     path: "/",
     element: <Layout />,
     children: [
-      { index: true, element: <HomePage /> },
+      // root redirect will navigate based on auth state
+      { index: true, element: <RootRedirect /> },
       { path: "login", element: <AuthPage /> },
       { path: "signup", element: <AuthPage /> },
       { path: "profile", element: <ProfilePage /> },

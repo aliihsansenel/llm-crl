@@ -51,13 +51,20 @@ export default function VocabsPage() {
         console.warn("create/add error", res.error);
         setError("Failed to add vocabulary (see console).");
       } else {
-        // success: reload list
-        await loadPrivateVocabs();
+        // success: update local state without a full re-fetch
+        const vocabId = res.data?.vocabId;
+        if (vocabId) {
+          setVocabItems((prev) => [...prev, { id: vocabId, itself: text }]);
+        } else {
+          // fallback: if no id returned, attempt to minimally reload private vocabs
+          await loadPrivateVocabs();
+        }
         setAdding(false);
         setNewVocabText("");
       }
-    } catch (err: any) {
-      setError(err?.message || String(err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -122,8 +129,9 @@ export default function VocabsPage() {
       if (vocabsErr) throw vocabsErr;
 
       setVocabItems((vocabsRes as Vocab[]) || []);
-    } catch (err: any) {
-      setError(err?.message || String(err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
       setVocabItems([]);
     } finally {
       setLoading(false);
@@ -158,8 +166,8 @@ export default function VocabsPage() {
         // Supabase-level rejections are handled gracefully per instructions
         console.warn("remove error", res.error);
       }
-      // refresh list
-      await loadPrivateVocabs();
+      // update local state without a full re-fetch
+      setVocabItems((prev) => prev.filter((v) => v.id !== vocabId));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);

@@ -92,7 +92,12 @@ user actions:
 
 
 Iteration context for Coder LLM:
-- Some code written by Coder LLM so some of the previous (write code for this and this) instructions could be not valid anymore so just implement after this but consider every rule above.
+- Some code written by Coder LLM so some of the previous (write code for this and this type) instructions could be not valid anymore so just implement after you see "New implementation request(s)", but consider every rule above since they are still valid.
 
-New implementation request for Coder LLM:
+Implementations made by Coder LLM previously:
 - in /vocabs vocab items of private list is listed, I can remove but I need button to add, if user clicks add new let user type and on confirm add to private list and global vocab list.
+
+New implementation request(s) for Coder LLM:
+- Drawer implemented previosly by Coder LLM, deactivated later for some problems, Activate it I want it to be visible by default and can be collapsed. And fix its size it was not right.
+- root path should navigate to /vocabs path if logged in otherwise navigate to login page.
+- I see when vocabulary added to private list client re-fetchs updated list that is unnecessary. If there are same behaviours in different pages also fix them.
