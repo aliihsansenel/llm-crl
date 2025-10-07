@@ -216,6 +216,42 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 export const supabase = createClient<any>(SUPABASE_URL, SUPABASE_ANON_KEY);
 const supabaseClient = supabase;
 
+/**
+ * Lightweight cached user-id helper
+ * - avoids calling supabase.auth.getUser repeatedly across components
+ * - keeps the cache in sync with auth state changes
+ */
+let cachedUserId: string | null = null;
+
+// initialize cache once
+(async () => {
+  try {
+    const { data } = await supabase.auth.getUser();
+    cachedUserId = data?.user?.id ?? null;
+  } catch {
+    cachedUserId = null;
+  }
+})();
+
+// keep cache updated when auth state changes
+supabase.auth.onAuthStateChange((_event, session) => {
+  cachedUserId = session?.user?.id ?? null;
+});
+
+/**
+ * Get cached user id if available; otherwise fetch and populate cache.
+ */
+export async function getCachedUserId(): Promise<string | null> {
+  if (cachedUserId) return cachedUserId;
+  try {
+    const { data } = await supabase.auth.getUser();
+    cachedUserId = data?.user?.id ?? null;
+    return cachedUserId;
+  } catch {
+    return null;
+  }
+}
+
 // Auth helpers
 export async function signUpWithEmail(email: string, password: string) {
   return await supabase.auth.signUp({ email, password });

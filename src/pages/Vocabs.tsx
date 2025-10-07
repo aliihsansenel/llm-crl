@@ -5,6 +5,7 @@ import supabase, {
   ensureUserResources,
   removeVocabFromPrivateList,
   createVocabAndAddToPrivateList,
+  getCachedUserId,
 } from "../lib/supabase";
 
 type Vocab = {
@@ -38,10 +39,7 @@ export default function VocabsPage() {
     }
     try {
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setError("You must be signed in to perform this action.");
         setLoading(false);
@@ -75,10 +73,7 @@ export default function VocabsPage() {
     setLoading(true);
     setError(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setError("You must be signed in to view your vocabulary.");
         setVocabItems([]);
@@ -152,10 +147,7 @@ export default function VocabsPage() {
 
     try {
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setError("You must be signed in to perform this action.");
         setLoading(false);

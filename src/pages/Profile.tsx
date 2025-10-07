@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import supabase, { ensureUserResources } from "../lib/supabase";
+import supabase, {
+  ensureUserResources,
+  getCachedUserId,
+} from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -53,11 +56,10 @@ export default function ProfilePage() {
   const isOwn = !otherId || otherId === currentUserId;
 
   async function fetchCurrentUserId() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    setCurrentUserId(user?.id ?? null);
-    return user?.id ?? null;
+    // use cached helper to reduce repeated network calls
+    const id = await getCachedUserId();
+    setCurrentUserId(id ?? null);
+    return id ?? null;
   }
 
   async function loadProfileAndSettings(viewUserId?: string | null) {
@@ -120,13 +122,21 @@ export default function ProfilePage() {
 
   async function handleProfileSave(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!currentUserId || !profile) {
+    if (!profile) {
       setMessage("No profile to save.");
       return;
     }
     setSaving(true);
     setMessage(null);
     try {
+      // prefer cached user id helper to avoid extra network calls
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setMessage("Not signed in.");
+        setSaving(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -135,11 +145,12 @@ export default function ProfilePage() {
           last_name: profile.last_name,
           bio: profile.bio,
         })
-        .match({ user_id: currentUserId });
+        .match({ user_id: userId });
 
       if (error) throw error;
       setMessage("Profile saved.");
-      await loadProfileAndSettings(currentUserId);
+      // refresh only the affected user's data
+      await loadProfileAndSettings(userId);
     } catch (err: unknown) {
       const msg = errToMessage(err);
       setMessage(msg);

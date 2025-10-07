@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import supabase from "../lib/supabase";
+import supabase, { getCachedUserId } from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
@@ -15,6 +15,20 @@ type VocabList = {
 };
 
 /**
+ * Normalize unknown errors into a readable string message.
+ */
+function errToMessage(err: unknown): string {
+  if (!err) return String(err);
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const e = err as any;
+    if (typeof e.message === "string") return e.message;
+  }
+  return String(err);
+}
+
+/**
  * ListDetail
  * - Dedicated page for a public vocab_list: /lists?id={id}
  * - Shows list meta and some items, allows subscribe/unsubscribe if signed in
@@ -26,7 +40,10 @@ export default function ListDetail() {
 
   const [list, setList] = useState<VocabList | null>(null);
   const [items, setItems] = useState<Vocab[]>([]);
+  const [privateVocabs, setPrivateVocabs] = useState<Vocab[]>([]);
+  const [addedFromPrivateIds, setAddedFromPrivateIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPrivate, setLoadingPrivate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
 
@@ -36,7 +53,90 @@ export default function ListDetail() {
   const [descInput, setDescInput] = useState<string | undefined | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [isPrivate, setIsPrivate] = useState(false);
+
+  /**
+   * Load viewer's private vocabulary (if any) and cache locally.
+   * This is separate from the current list's items and used for the
+   * "Add items from your personal vocabulary list" section.
+   */
+  async function loadPrivateVocabs(userId: string | null) {
+    setLoadingPrivate(true);
+    setPrivateVocabs([]);
+    try {
+      if (!userId) return;
+      const { data: pListRes, error: pListErr } = await supabase
+        .from("p_vocab_lists")
+        .select("id")
+        .eq("owner_id", userId)
+        .limit(1)
+        .maybeSingle();
+      if (pListErr) throw pListErr;
+      const pId = pListRes?.id;
+      if (!pId) return;
+      const { data: itemsRes, error: itemsErr } = await supabase
+        .from("p_vocab_list_items")
+        .select("vocab_id")
+        .eq("p_vocab_list_id", pId);
+      if (itemsErr) throw itemsErr;
+      const ids = ((itemsRes || []) as { vocab_id: number }[]).map(
+        (r) => r.vocab_id
+      );
+      if (!ids.length) {
+        setPrivateVocabs([]);
+        return;
+      }
+      const { data: vocabsRes, error: vocErr } = await supabase
+        .from("vocabs")
+        .select("id,itself")
+        .in("id", ids);
+      if (vocErr) throw vocErr;
+      setPrivateVocabs((vocabsRes as Vocab[]) || []);
+    } catch (err) {
+      console.warn("loadPrivateVocabs error", err);
+      setPrivateVocabs([]);
+    } finally {
+      setLoadingPrivate(false);
+    }
+  }
+
+  /**
+   * Optimistically add a private vocab to the current (top) list.
+   * - Immediately update UI (prepend to top list and hide Add button)
+   * - Perform DB insert in background
+   * - Revert UI if DB rejects
+   */
+  async function handleOptimisticAddFromPrivate(vocab: Vocab) {
+    setMessage(null);
+    if (!list) {
+      setMessage("No list selected.");
+      return;
+    }
+    const alreadyInTop =
+      items.some((it) => it.id === vocab.id) ||
+      addedFromPrivateIds.includes(vocab.id);
+    if (alreadyInTop) return;
+
+    const prevItems = items;
+    // optimistic UI update
+    setItems((s) => [vocab, ...s].slice(0, 20));
+    setAddedFromPrivateIds((s) => [...s, vocab.id]);
+
+    try {
+      const res = await supabase
+        .from("vocab_list_items")
+        .insert({ vocab_list_id: list.id, vocab_id: vocab.id });
+      if (res.error) {
+        // revert optimistic update
+        setItems(prevItems);
+        setAddedFromPrivateIds((s) => s.filter((id) => id !== vocab.id));
+        setMessage("Failed to add item to list.");
+      }
+    } catch (err) {
+      setItems(prevItems);
+      setAddedFromPrivateIds((s) => s.filter((id) => id !== vocab.id));
+      setMessage(String(err));
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -85,7 +185,6 @@ export default function ListDetail() {
           }
         }
 
-        setIsPrivate(privateFlag);
         setList(resolvedList);
 
         // fetch up to 20 items (show last added first).
@@ -101,7 +200,9 @@ export default function ListDetail() {
             .eq(fk, listId)
             .limit(20);
           if (idsErr) throw idsErr;
-          const ids = (idsRes || []).map((r: any) => r.vocab_id);
+          const ids = ((idsRes || []) as { vocab_id: number }[]).map(
+            (r) => r.vocab_id
+          );
           if (ids.length === 0) {
             return [] as Vocab[];
           }
@@ -136,33 +237,34 @@ export default function ListDetail() {
           resolvedList &&
           resolvedList.owner_id
         ) {
-          const { data: authRes } = await supabase.auth.getUser();
-          const viewerId = authRes?.user?.id ?? null;
+          const viewerId = await getCachedUserId();
           if (viewerId && viewerId === resolvedList.owner_id) {
             // try to find the user's private list
-            const { data: pListByOwner } = await supabase
-              .from("p_vocab_lists")
-              .select("id")
-              .eq("owner_id", viewerId)
-              .limit(1)
-              .maybeSingle();
-            const pId = pListByOwner?.id;
-            if (pId) {
-              const pItems = await loadVocabsForList(pId, true);
-              if (pItems.length > 0) {
-                loaded = pItems;
-                setIsPrivate(true);
-                // reflect that we are effectively showing the private list
-                setList((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        id: pId,
-                        name: "Private list",
-                        owner_id: viewerId,
-                      }
-                    : prev
-                );
+            const { data: pListByOwner, error: pListByOwnerErr } =
+              await supabase
+                .from("p_vocab_lists")
+                .select("id")
+                .eq("owner_id", viewerId)
+                .limit(1)
+                .maybeSingle();
+            if (!pListByOwnerErr) {
+              const pId = pListByOwner?.id;
+              if (pId) {
+                const pItems = await loadVocabsForList(pId, true);
+                if (pItems.length > 0) {
+                  loaded = pItems;
+                  // reflect that we are effectively showing the private list
+                  setList((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          id: pId,
+                          name: "Private list",
+                          owner_id: viewerId,
+                        }
+                      : prev
+                  );
+                }
               }
             }
           }
@@ -171,12 +273,15 @@ export default function ListDetail() {
         setItems(loaded);
 
         // check subscription status if user signed in
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        const userId = user?.id;
+        const userId = await getCachedUserId();
         // store current user id for ownership checks and later operations
         setCurrentUserId(userId ?? null);
+
+        // load viewer's private vocabs once we know user id (no-op for null)
+        if (userId) {
+          await loadPrivateVocabs(userId);
+        }
+
         if (userId) {
           const { data: subRes, error: subErr } = await supabase
             .from("vocab_lists_sub")
@@ -192,11 +297,7 @@ export default function ListDetail() {
           setSubscribed(null);
         }
       } catch (err: unknown) {
-        setMessage(
-          typeof err === "object" && err && "message" in err
-            ? (err as any).message
-            : String(err)
-        );
+        setMessage(errToMessage(err));
         setList(null);
         setItems([]);
       } finally {
@@ -214,10 +315,7 @@ export default function ListDetail() {
   async function handleSubscribe() {
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setMessage("Sign in to subscribe to lists.");
         return;
@@ -234,52 +332,7 @@ export default function ListDetail() {
       setSubscribed(true);
       setMessage("Subscribed.");
     } catch (err: unknown) {
-      setMessage(
-        typeof err === "object" && err && "message" in err
-          ? (err as any).message
-          : String(err)
-      );
-    }
-  }
-
-  async function handleAddToList(vocabId: number) {
-    setMessage(null);
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
-      if (!userId) {
-        setMessage("Sign in to add items to lists.");
-        return;
-      }
-      const res = await supabase
-        .from("vocab_list_items")
-        .insert({ vocab_list_id: id, vocab_id: vocabId });
-      if (res.error) {
-        // ignore duplicate errors gracefully
-        if (
-          res.error.code === "23505" ||
-          /unique/i.test(res.error.message || "")
-        ) {
-          setMessage("Item already in list.");
-        } else {
-          setMessage("Could not add item to list.");
-        }
-        return;
-      }
-      // fetch the vocab row and prepend to items
-      const { data: vRes, error: vErr } = await supabase
-        .from("vocabs")
-        .select("id,itself")
-        .eq("id", vocabId)
-        .maybeSingle();
-      if (!vErr && vRes) {
-        setItems((s) => [vRes as Vocab, ...s].slice(0, 20));
-      }
-      setMessage("Added to list.");
-    } catch (err: unknown) {
-      setMessage(String(err));
+      setMessage(errToMessage(err));
     }
   }
 
@@ -304,10 +357,7 @@ export default function ListDetail() {
   async function handleUnsubscribe() {
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setMessage("Sign in to unsubscribe.");
         return;
@@ -324,11 +374,7 @@ export default function ListDetail() {
       setSubscribed(false);
       setMessage("Unsubscribed.");
     } catch (err: unknown) {
-      setMessage(
-        typeof err === "object" && err && "message" in err
-          ? (err as any).message
-          : String(err)
-      );
+      setMessage(errToMessage(err));
     }
   }
 
@@ -461,52 +507,90 @@ export default function ListDetail() {
         </Button>
       </div>
 
-      <div className="border-t pt-4">
-        <h2 className="font-semibold mb-2">Items</h2>
-        {items.length === 0 ? (
-          <Alert>
-            <AlertDescription>
-              No items in this list.
-              <div className="mt-2">
-                <Button size="sm" asChild>
-                  <Link to="/vocabs">Go to My Vocabulary</Link>
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <ul className="space-y-3">
-            {items.map((v, idx) => (
-              <li
-                key={v.id}
-                className={`rounded-md border p-3 ${idx >= 10 ? "opacity-60" : ""}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{v.itself}</div>
-                  <div className="flex gap-2">
-                    <Button size="sm" asChild>
-                      <Link to={`/vocabs?id=${v.id}`}>Open</Link>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAddToList(v.id)}
-                    >
-                      Add
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleRemoveFromList(v.id)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
+      <div className="border-t pt-4 space-y-6">
+        {/* Top: current list items (first list) */}
+        <div>
+          <h2 className="font-semibold mb-2">Items</h2>
+          {items.length === 0 ? (
+            <Alert>
+              <AlertDescription>
+                No items in this list.
+                <div className="mt-2">
+                  <Button size="sm" asChild>
+                    <Link to="/vocabs">Go to My Vocabulary</Link>
+                  </Button>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <ul className="space-y-3">
+              {items.map((v, idx) => (
+                <li
+                  key={v.id}
+                  className={`rounded-md border p-3 ${idx >= 10 ? "opacity-60" : ""}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{v.itself}</div>
+                    <div className="flex gap-2">
+                      <Button size="sm" asChild>
+                        <Link to={`/vocabs?id=${v.id}`}>Open</Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveFromList(v.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Bottom: personal private vocabs to add */}
+        <div>
+          <h3 className="font-semibold mb-2">
+            Add items from your personal vocabulary list
+          </h3>
+          {loadingPrivate ? (
+            <div className="text-sm text-muted-foreground">
+              Loading personal vocabulary...
+            </div>
+          ) : !privateVocabs.length ? (
+            <div className="text-sm text-muted-foreground">
+              No personal vocabulary available.
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {privateVocabs.map((v) => {
+                const already =
+                  items.some((it) => it.id === v.id) ||
+                  addedFromPrivateIds.includes(v.id);
+                return (
+                  <li
+                    key={v.id}
+                    className={`rounded-md border p-3 flex items-center justify-between ${already ? "opacity-30" : ""}`}
+                  >
+                    <div className="text-sm">{v.itself}</div>
+                    <div>
+                      {!already ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOptimisticAddFromPrivate(v)}
+                        >
+                          Add
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

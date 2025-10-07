@@ -12,7 +12,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "../components/ui/alert-dialog";
-import supabase from "../lib/supabase";
+import supabase, { getCachedUserId } from "../lib/supabase";
 
 export default function ListsPage() {
   const [owned, setOwned] = useState<any[]>([]);
@@ -27,10 +27,8 @@ export default function ListsPage() {
     setLoading(true);
     setError(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      // use cached helper to avoid repeated auth calls
+      const userId = await getCachedUserId();
       if (!userId) {
         setOwned([]);
         setSubscribed([]);
@@ -146,10 +144,7 @@ export default function ListsPage() {
     setLoading(true);
     setError(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setError("Sign in required");
         return;
@@ -172,10 +167,7 @@ export default function ListsPage() {
     setLoading(true);
     setError(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setError("Sign in required");
         return;
