@@ -128,7 +128,9 @@ seperate this two lists one under the other, since first list is current list's 
 beside vocabulary items in second list should have only one button "Add", on page display make vocab items in second lists which are already in first list set opacity to 30% and hide add buttons. when clicked add to top list immediately, while required db request is being made (concurrently, do not wait supabase's response), and make item on bottom list 30% opacity and hide add button, if supabase rejects undo this actions. 
 beside vocabulary items in first list place a remove button, but remove action must wait supabase response.
 - do not fetch updated list after every action as it is not necessary,
+- this problem solved: in profile page I can not update username fix this problem. I detected ensureUserResources triggered when loadProfileAndSettings runs, ensureUserResources should only run if profile row doesn't exist for current user.
+- this problem solved: Other request of Developer is about consecutive same requests, fetch requests monitored on network tab of developer tools and I (as Developer) see same requests being made consecutively on every page of project, 2 or even 4 times on some pages, please fix it.
 
 New implementation request(s) for Coder LLM:
-- this problem still persists: in profile page I can not update username fix this problem. I detected ensureUserResources triggered when loadProfileAndSettings runs, ensureUserResources should only run if profile row doesn't exist for current user.
-- this problem still persists: Other request of Developer is about consecutive same requests, fetch requests monitored on network tab of developer tools and I (as Developer) see same requests being made consecutively on every page of project, 2 or even 4 times on some pages, please fix it.
+- When I create a list and, go to detailed page, I see all of my vocab items on private list added visually to list already please fix this behaviour.
+- Then ask me to test after fix if if I confirm I might say another related problem to fix.

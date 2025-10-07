@@ -230,46 +230,6 @@ export default function ListDetail() {
           }
         }
 
-        // Fallback: if resolved as public list but no items found and the viewer is the owner,
-        // attempt to load the viewer's private list items (they may be stored in p_vocab_list_items).
-        if (
-          (!loaded || loaded.length === 0) &&
-          resolvedList &&
-          resolvedList.owner_id
-        ) {
-          const viewerId = await getCachedUserId();
-          if (viewerId && viewerId === resolvedList.owner_id) {
-            // try to find the user's private list
-            const { data: pListByOwner, error: pListByOwnerErr } =
-              await supabase
-                .from("p_vocab_lists")
-                .select("id")
-                .eq("owner_id", viewerId)
-                .limit(1)
-                .maybeSingle();
-            if (!pListByOwnerErr) {
-              const pId = pListByOwner?.id;
-              if (pId) {
-                const pItems = await loadVocabsForList(pId, true);
-                if (pItems.length > 0) {
-                  loaded = pItems;
-                  // reflect that we are effectively showing the private list
-                  setList((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          id: pId,
-                          name: "Private list",
-                          owner_id: viewerId,
-                        }
-                      : prev
-                  );
-                }
-              }
-            }
-          }
-        }
-
         setItems(loaded);
 
         // check subscription status if user signed in
