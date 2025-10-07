@@ -120,8 +120,6 @@ Only /profile and /vocabs pages should navigate to /login if not logged in.
 - turn every alert-confirmation behavour done with basic default js alert into alert-dialog (I installed pnpm dlx shadcn@latest add alert alert-dialog).
 - in /lists page under the title Owned Lists (notice these lists are vocab_lists not private) create a button "Create list" beneath the listed lists (even if there is not any list). on click insert to table vocab_list as request ongoing disable button and turn text into "Creating..." then after list created open list's dedicated page in new browser tab.
 - in dedicated list page user's saved vocabulary should be listed (last added to first added (reverse order) limit recently added 20 vocabulary items). Beside vocabulary "add" button to add to the list. make lower added vocabularies' opacity. And since added vocabularies listed in lists add remove button beside them. If there is no Item in users private vocab list. Write an alert (shadcn) and place a button to navigate user to /vocabs page.
-
-New implementation request(s) for Coder LLM:
 - in profile page I can not update username fix this problem.
 - dedicated list page is created but needs modifications and fixes since it has faulty behaviour,
 I'll describe what final behaviour should be:
@@ -130,4 +128,7 @@ seperate this two lists one under the other, since first list is current list's 
 beside vocabulary items in second list should have only one button "Add", on page display make vocab items in second lists which are already in first list set opacity to 30% and hide add buttons. when clicked add to top list immediately, while required db request is being made (concurrently, do not wait supabase's response), and make item on bottom list 30% opacity and hide add button, if supabase rejects undo this actions. 
 beside vocabulary items in first list place a remove button, but remove action must wait supabase response.
 - do not fetch updated list after every action as it is not necessary,
-- Other request of Developer is about fetch requests monitored on network tab of developer tools, I (as Developer) see same requests being made consecutively on every page of project, 2 or even 4 times on some pages, please fix it.
+
+New implementation request(s) for Coder LLM:
+- this problem still persists: in profile page I can not update username fix this problem. I detected ensureUserResources triggered when loadProfileAndSettings runs, ensureUserResources should only run if profile row doesn't exist for current user.
+- this problem still persists: Other request of Developer is about consecutive same requests, fetch requests monitored on network tab of developer tools and I (as Developer) see same requests being made consecutively on every page of project, 2 or even 4 times on some pages, please fix it.

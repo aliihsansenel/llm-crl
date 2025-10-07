@@ -67,6 +67,9 @@ export default function ProfilePage() {
     setMessage(null);
     try {
       const userId = viewUserId ?? (await fetchCurrentUserId());
+      // keep local cached currentUserId in sync
+      setCurrentUserId(userId ?? null);
+
       if (!userId) {
         setProfile(null);
         setSettings(null);
@@ -74,12 +77,7 @@ export default function ProfilePage() {
         return;
       }
 
-      // If viewing own profile, ensure resources exist
-      if (!otherId || otherId === userId) {
-        await ensureUserResources(userId);
-      }
-
-      // fetch profile
+      // fetch profile first
       const profRes = await supabase
         .from("profiles")
         .select("user_id,username,first_name,last_name,bio")
@@ -87,7 +85,28 @@ export default function ProfilePage() {
         .maybeSingle();
 
       if (profRes.error) throw profRes.error;
-      setProfile(profRes.data ?? null);
+
+      let prof = profRes.data ?? null;
+
+      // If viewing own profile and profile row doesn't exist, create missing resources then re-fetch profile
+      if ((!otherId || otherId === userId) && !prof) {
+        try {
+          await ensureUserResources(userId);
+        } catch (e) {
+          // ensureUserResources is best-effort; log and continue to re-fetch
+          // eslint-disable-next-line no-console
+          console.warn("ensureUserResources failed", e);
+        }
+        const profRes2 = await supabase
+          .from("profiles")
+          .select("user_id,username,first_name,last_name,bio")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (profRes2.error) throw profRes2.error;
+        prof = profRes2.data ?? null;
+      }
+
+      setProfile(prof);
 
       // fetch settings (only present for authenticated users)
       const settingsRes = await supabase

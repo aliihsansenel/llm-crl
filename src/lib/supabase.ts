@@ -222,34 +222,37 @@ const supabaseClient = supabase;
  * - keeps the cache in sync with auth state changes
  */
 let cachedUserId: string | null = null;
+let getUserPromise: Promise<string | null> | null = null;
 
-// initialize cache once
-(async () => {
-  try {
-    const { data } = await supabase.auth.getUser();
-    cachedUserId = data?.user?.id ?? null;
-  } catch {
-    cachedUserId = null;
-  }
-})();
-
-// keep cache updated when auth state changes
+/**
+ * Do not eagerly call supabase.auth.getUser on module load (avoids duplicate requests in React Strict Mode).
+ * Keep cache in sync with auth state changes.
+ */
 supabase.auth.onAuthStateChange((_event, session) => {
   cachedUserId = session?.user?.id ?? null;
 });
 
 /**
  * Get cached user id if available; otherwise fetch and populate cache.
+ * Serializes concurrent fetches to avoid duplicated network requests.
  */
 export async function getCachedUserId(): Promise<string | null> {
   if (cachedUserId) return cachedUserId;
-  try {
-    const { data } = await supabase.auth.getUser();
-    cachedUserId = data?.user?.id ?? null;
-    return cachedUserId;
-  } catch {
-    return null;
-  }
+  if (getUserPromise) return getUserPromise;
+
+  getUserPromise = (async () => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      cachedUserId = data?.user?.id ?? null;
+      return cachedUserId;
+    } catch {
+      return null;
+    } finally {
+      getUserPromise = null;
+    }
+  })();
+
+  return getUserPromise;
 }
 
 // Auth helpers
@@ -283,7 +286,7 @@ export async function ensureUserResources(userId: string) {
   try {
     await supabase
       .from("profiles")
-      .upsert({ user_id: userId, username: `user_${userId.slice(0, 8)}` });
+      .insert({ user_id: userId, username: `user_${userId.slice(0, 8)}` });
   } catch (err) {
     errors.push({ table: "profiles", error: err });
   }
