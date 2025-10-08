@@ -130,7 +130,10 @@ beside vocabulary items in first list place a remove button, but remove action m
 - do not fetch updated list after every action as it is not necessary,
 - this problem solved: in profile page I can not update username fix this problem. I detected ensureUserResources triggered when loadProfileAndSettings runs, ensureUserResources should only run if profile row doesn't exist for current user.
 - this problem solved: Other request of Developer is about consecutive same requests, fetch requests monitored on network tab of developer tools and I (as Developer) see same requests being made consecutively on every page of project, 2 or even 4 times on some pages, please fix it.
-
-New implementation request(s) for Coder LLM:
 - When I create a list and, go to detailed page, I see all of my vocab items on private list added visually to list already please fix this behaviour.
 - Then ask me to test after fix if if I confirm I might say another related problem to fix.
+
+New implementation request(s) for Coder LLM:
+- In discover page vocabs listed as you know, There is details option which lists meanings (itself) but not sentences, thats what I wanted. Now I want same in /vocabs for private list items. There is remove button in private list items place details button before remove button.
+- In vocabs details page I see meanings listed with example sentences that is good. But I need buttons and features for creating, deleting meanings and sentences. Keep in mind any authenticated user can create meanings but update and delete can be rejected by (supabase's foreign key restrictions) so if update or delete rejected show user an alert dialog says that user can drop ownership instead or cancel, if user select drop ownership attempt to drop ownership. Also meanings have owner_id if user is not owner or he is not admin do not show update or delete buttons, that user can only add meanings and attach/remove sentences to own meanings (after request being made supabase will decide like I told before).
+- for meaning and sentence creation open a popover (installed already from shadcn), user will make changes in view inside popover.

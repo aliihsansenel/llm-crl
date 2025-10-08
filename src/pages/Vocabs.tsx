@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import supabase, {
@@ -217,6 +218,9 @@ export default function VocabsPage() {
             >
               <div className="text-sm">{v.itself}</div>
               <div className="flex gap-2">
+                <Button size="sm" asChild>
+                  <Link to={`/vocabs?id=${v.id}`}>Details</Link>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
