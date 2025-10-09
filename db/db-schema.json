@@ -542,17 +542,6 @@
         "ordinal_position": 3
       },
       {
-        "column_name": "l_item_id",
-        "data_type": "integer",
-        "is_nullable": "YES",
-        "column_default": null,
-        "udt_name": "int4",
-        "character_maximum_length": null,
-        "numeric_precision": 32,
-        "numeric_scale": 0,
-        "ordinal_position": 4
-      },
-      {
         "column_name": "delete_requested",
         "data_type": "boolean",
         "is_nullable": "NO",
@@ -595,6 +584,28 @@
         "numeric_precision": null,
         "numeric_scale": null,
         "ordinal_position": 8
+      },
+      {
+        "column_name": "l_item_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 9
+      },
+      {
+        "column_name": "title",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 10
       }
     ],
     "primary_key": ["id"],

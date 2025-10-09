@@ -1,0 +1,444 @@
+import React, { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import supabase, {
+  getCachedUserId,
+  ensureUserResources,
+} from "../lib/supabase";
+import { Button } from "../components/ui/button";
+import { Textarea } from "../components/ui/textarea";
+
+type Row = {
+  vocabId?: number;
+  vocabText?: string;
+  meaningId?: number;
+  meaningText?: string;
+};
+
+type RlItemRow = {
+  id: number;
+  title?: string | null;
+  r_item?: string | null;
+  l_item_id?: string | null;
+  owner_id?: string | null;
+  delete_requested?: boolean | null;
+};
+
+export default function RlItemDetail() {
+  const [params] = useSearchParams();
+  const idParam = params.get("id");
+  const id = idParam ? Number(idParam) : NaN;
+  const navigate = useNavigate();
+
+  const [rlItem, setRlItem] = useState<RlItemRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
+
+  // left-side rows (3..4)
+  const [rows, setRows] = useState<Row[]>([{}, {}, {}]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // right-side lists
+  const [privateVocabs, setPrivateVocabs] = useState<
+    { id: number; itself: string }[]
+  >([]);
+  const [meaningsForSelectedVocab, setMeaningsForSelectedVocab] = useState<
+    { id: number; itself: string }[]
+  >([]);
+
+  const [instructions, setInstructions] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        if (!id || Number.isNaN(id)) {
+          setMessage("Invalid rl_item id");
+          setLoading(false);
+          return;
+        }
+
+        // load rl_item row
+        const { data: rRes, error: rErr } = await supabase
+          .from("rl_items")
+          .select("id,title,r_item,l_item_id,owner_id,delete_requested")
+          .eq("id", id)
+          .maybeSingle();
+        if (rErr) throw rErr;
+        if (!mounted) return;
+        setRlItem(rRes ?? null);
+
+        // load private vocabs (last 30)
+        const userId = await getCachedUserId();
+        if (userId) {
+          await ensureUserResources(userId);
+          const { data: pList } = await supabase
+            .from("p_vocab_lists")
+            .select("id")
+            .eq("owner_id", userId)
+            .limit(1)
+            .maybeSingle();
+          const listId = pList?.id;
+          if (listId) {
+            const { data: itemsRes } = await supabase
+              .from("p_vocab_list_items")
+              .select("vocab_id")
+              .eq("p_vocab_list_id", listId)
+              .order("vocab_id", { ascending: false })
+              .limit(30);
+            const ids = (itemsRes || []).map(
+              (r: { vocab_id: number }) => r.vocab_id
+            );
+            if (ids.length) {
+              const { data: vocabs } = await supabase
+                .from("vocabs")
+                .select("id,itself")
+                .in("id", ids)
+                .order("created_at", { ascending: false })
+                .limit(30);
+              if (vocabs) setPrivateVocabs(vocabs);
+            }
+          }
+        }
+      } catch (err: unknown) {
+        setMessage(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  // select a vocab to populate the active row and load meanings
+  async function selectVocabForActiveRow(vocabId: number, vocabText: string) {
+    setMessage(null);
+    try {
+      setRows((prev) => {
+        const copy = prev.slice();
+        copy[activeIndex] = {
+          ...copy[activeIndex],
+          vocabId,
+          vocabText,
+          meaningId: undefined,
+          meaningText: undefined,
+        };
+        return copy;
+      });
+
+      const { data: mRes, error: mErr } = await supabase
+        .from("meanings")
+        .select("id,itself")
+        .eq("vocab_id", vocabId)
+        .order("id", { ascending: true })
+        .limit(100);
+      if (mErr) throw mErr;
+      setMeaningsForSelectedVocab(
+        (mRes || []) as { id: number; itself: string }[]
+      );
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function selectMeaningForRow(meaningId: number, meaningText: string) {
+    setRows((prev) => {
+      const copy = prev.slice();
+      copy[activeIndex] = {
+        ...copy[activeIndex],
+        meaningId,
+        meaningText,
+      };
+      return copy;
+    });
+  }
+
+  function addFourthRow() {
+    if (rows.length >= 4) return;
+    setRows((prev) => [...prev, {}]);
+  }
+
+  function removeRow(index: number) {
+    if (rows.length <= 3) return;
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setActiveIndex(Math.max(0, Math.min(activeIndex, rows.length - 2)));
+  }
+
+  function allRowsValid() {
+    if (rows.length < 3) return false;
+    return rows.every(
+      (r) => typeof r.vocabId === "number" && typeof r.meaningId === "number"
+    );
+  }
+
+  function selectedMeaningIds() {
+    return rows.map((r) => r.meaningId as number);
+  }
+
+  // Invoke the edge function and rely on its returned state per instructions (do not re-fetch rl_item after)
+  async function handleCreateReading() {
+    if (!rlItem) return;
+    setMessage(null);
+    if (!allRowsValid()) {
+      setMessage("Please select vocab and meaning for all rows.");
+      return;
+    }
+    setCreating(true);
+    try {
+      const meaningIds = selectedMeaningIds();
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+      const SUPABASE_ANON_KEY = import.meta.env
+        .VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const url = `${SUPABASE_URL}/functions/v1/temp-create-reading-text`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          id: rlItem.id,
+          meanings: meaningIds,
+          instructions,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`edge function failed: ${res.status} ${text}`);
+      }
+      const data = await res.json();
+      // expected keys: title, r_item, l_item_id
+      setRlItem((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: data.title,
+              r_item: data.r_item,
+              l_item_id: data.l_item_id,
+            }
+          : prev
+      );
+      setMessage("Reading material created.");
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  // Delete directly when l_item_id is null, otherwise set delete_requested = true
+  async function handleDeleteOrRequest() {
+    if (!rlItem) return;
+    setMessage(null);
+    try {
+      if (!rlItem.l_item_id) {
+        const del = await supabase
+          .from("rl_items")
+          .delete()
+          .match({ id: rlItem.id });
+        if (del.error) throw del.error;
+        setMessage("Deleted.");
+        navigate("/rl-items");
+        return;
+      } else {
+        const upd = await supabase
+          .from("rl_items")
+          .update({ delete_requested: true })
+          .match({ id: rlItem.id });
+        if (upd.error) throw upd.error;
+        setRlItem((prev) =>
+          prev ? { ...prev, delete_requested: true } : prev
+        );
+        setMessage("Delete requested.");
+      }
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // check if meaning already used in any row
+  function isMeaningChosenElsewhere(meaningId: number) {
+    return rows.some((r) => r.meaningId === meaningId);
+  }
+
+  if (loading) return <div className="p-6 text-sm">Loading...</div>;
+  if (!rlItem)
+    return (
+      <div className="p-6 text-sm text-red-600">
+        {message ?? "Item not found."}
+      </div>
+    );
+
+  return (
+    <div className="p-6 max-w-4xl">
+      <h1 className="text-2xl font-semibold mb-2">
+        {rlItem.title ?? "Unnamed Content"}
+      </h1>
+      <div className="text-sm text-muted-foreground mb-4">
+        {rlItem.l_item_id
+          ? `Listening id: ${rlItem.l_item_id}`
+          : "No listening material yet"}
+      </div>
+
+      {message && (
+        <div className="mb-4 text-sm text-muted-foreground">{message}</div>
+      )}
+
+      <div className="grid grid-cols-2 gap-6">
+        <div className="border p-4 rounded">
+          <div className="mb-2 font-semibold">Vocab-Meaning Pairs</div>
+          <div className="space-y-2">
+            {rows.map((r, idx) => (
+              <div
+                key={idx}
+                className={`p-3 rounded border ${idx === activeIndex ? "bg-accent/10" : ""}`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-medium">Row {idx + 1}</div>
+                  <div className="flex gap-2">
+                    {rows.length > 3 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => removeRow(idx)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                    {idx === rows.length - 1 && rows.length < 4 && (
+                      <Button size="sm" onClick={addFourthRow}>
+                        Add
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-xs mb-2">Vocab: {r.vocabText ?? "—"}</div>
+                <div className="text-xs mb-2">
+                  Meaning: {r.meaningText ?? "—"}
+                </div>
+
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => setActiveIndex(idx)}>
+                    Edit Row
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setRows((prev) => {
+                        const copy = prev.slice();
+                        copy[idx] = {};
+                        return copy;
+                      });
+                      // if clearing the active row, also clear meanings list if this was active
+                      if (idx === activeIndex) setMeaningsForSelectedVocab([]);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border p-4 rounded">
+          <div className="mb-2 font-semibold">Select Vocab / Meanings</div>
+
+          <div className="mb-3">
+            <div className="text-sm mb-1">Private Vocabs (last 30)</div>
+            <ul className="space-y-1 max-h-64 overflow-auto">
+              {privateVocabs.map((v) => (
+                <li
+                  key={v.id}
+                  className="flex items-center justify-between p-2 rounded hover:bg-muted"
+                >
+                  <div>{v.itself}</div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => selectVocabForActiveRow(v.id, v.itself)}
+                    >
+                      Select
+                    </Button>
+                  </div>
+                </li>
+              ))}
+              {!privateVocabs.length && (
+                <li className="text-xs text-muted-foreground">
+                  No private vocabs found.
+                </li>
+              )}
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-sm mb-1">Meanings for selected vocab</div>
+            {!meaningsForSelectedVocab.length ? (
+              <div className="text-xs text-muted-foreground">
+                Select a vocab to list meanings.
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {meaningsForSelectedVocab.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center justify-between p-2 rounded hover:bg-muted"
+                  >
+                    <div
+                      className={`${isMeaningChosenElsewhere(m.id) ? "opacity-50" : ""}`}
+                    >
+                      {m.itself}
+                    </div>
+                    <div>
+                      <Button
+                        size="sm"
+                        disabled={isMeaningChosenElsewhere(m.id)}
+                        onClick={() => selectMeaningForRow(m.id, m.itself)}
+                      >
+                        Choose
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-2 font-semibold">Instructions</div>
+        <Textarea
+          value={instructions}
+          onChange={(e) =>
+            setInstructions((e.target as HTMLTextAreaElement).value)
+          }
+          placeholder="Enter instructions for the reading material"
+        />
+      </div>
+
+      <div className="flex gap-2 mt-4">
+        <Button
+          onClick={handleCreateReading}
+          disabled={!allRowsValid() || creating}
+        >
+          {creating ? "Working..." : "Create Reading material"}
+        </Button>
+        <Button variant="destructive" onClick={handleDeleteOrRequest}>
+          {rlItem.l_item_id ? "Delete request" : "Delete"}
+        </Button>
+      </div>
+
+      <div className="mt-6 border p-4 rounded bg-muted/10">
+        <div className="font-semibold mb-2">Generated Reading Text</div>
+        <div className="whitespace-pre-wrap text-sm">
+          {rlItem.r_item ?? "No generated reading yet."}
+        </div>
+      </div>
+    </div>
+  );
+}

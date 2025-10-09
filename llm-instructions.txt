@@ -43,25 +43,35 @@ meanings (table): authenticated users can attach meanings to a vocabulary item (
 
 
 These tables' code implementation is for another phase of the project, so do not create any page or logic implementation for these table:
+!!! New edit: Now we come to the phase that we need to implement some of these tables logic (not all). So look at final part of this file: the section "New implementation request(s) for Coder LLM:"
+What are the tables need to be connected with client according to instructions? Developer answers:
+first and most importantly: rl_items and rl_item_vocabs_and_meanings. (code related to other than these two tables of this phase will be implemented in another iteration so ignore other rl related tables).
+Notice: RLS policies and column based restrictions in rl_items table are very restrictive for both admin and standart_user, since business logic is complex and state based, most of the update operations on this table will be handled by a custom edge function in server. Do not attempt to suggest or write code for that edge function, Developer will specify input and outputs of request to that function.
+restrictions was set for insert in supabase: REVOKE INSERT (id, title, instructions, r_item, l_item_id, delete_requested, created_at, modified_at) ON public.rl_items FROM authenticated;
+restrictions was set for update in supabase REVOKE UPDATE (id, title, instructions, r_item, l_item_id, created_at, modified_at) ON public.rl_items FROM authenticated;
+on the other hand only SELECT available for client (js supabase client) for table rl_item_vocabs_and_meanings. Edge function will handle db operations.
 
-p_rl_list_items (table):
+Context: rl abbrevation stands for reading and listening, user will select meanings of 3-4 different vocabulary. User can select only on meaning of a vocabulary, but since user can select same vocab then choose another meaning indirectly multiple meaning selection is allowed but in the final a spesific rl_item only can be related to maximum 4 row of table rl_item_vocabs_and_meanings, there is a limit.  
 
-p_rl_lists (table):
+rl_items (table): user can select all items in rl_item, insert with only own id (owner_id), UPDATE is only to delete_requested and owner_id column to ask for deletion (only admin can delete) or user can drop ownership himself to null. Actually DELETE is allowed under some conditions but told very bottom of this file so consider new information.
 
-rl_item_vocabs_and_meanings (table):
+p_rl_lists (table): similar logic as p_vocab_list: personal list for rl_item, but consider the schema.
 
-rl_items (table):
+p_rl_list_items (table): similar logic as p_vocab_list_items: items of personal list for rl_item, but consider the schema.
 
-rl_list_items (table):
+rl_item_vocabs_and_meanings (table): vocab and meanings of a spesific rl_item
 
-rl_lists (table):
+rl_list_items (table): will be implemented in another iteration.
 
-rl_lists_sub (table):
+rl_lists (table): will be implemented in another iteration.
+
+rl_lists_sub (table): will be implemented in another iteration.
 
 Finally, instructions for building ui for Coder LLM:
 
 - use react with typescript
 - do not use npm package manager directly, use pnpm instead.
+- Developer created and initiliazed this project using vite.
 - primarily shadcn and its indirect dependencies like tailwind css and radix elements should be preferred for building ui.
 - Developer have installed some components already. If necessary, install shadcn components by executing commands like "pnpm dlx shadcn@latest add button"
 - react-router (7) "data" mode should be used for navigation and page routing, do not use "framework" or "declarative" mode.
@@ -132,8 +142,28 @@ beside vocabulary items in first list place a remove button, but remove action m
 - this problem solved: Other request of Developer is about consecutive same requests, fetch requests monitored on network tab of developer tools and I (as Developer) see same requests being made consecutively on every page of project, 2 or even 4 times on some pages, please fix it.
 - When I create a list and, go to detailed page, I see all of my vocab items on private list added visually to list already please fix this behaviour.
 - Then ask me to test after fix if if I confirm I might say another related problem to fix.
-
-New implementation request(s) for Coder LLM:
 - In discover page vocabs listed as you know, There is details option which lists meanings (itself) but not sentences, thats what I wanted. Now I want same in /vocabs for private list items. There is remove button in private list items place details button before remove button.
 - In vocabs details page I see meanings listed with example sentences that is good. But I need buttons and features for creating, deleting meanings and sentences. Keep in mind any authenticated user can create meanings but update and delete can be rejected by (supabase's foreign key restrictions) so if update or delete rejected show user an alert dialog says that user can drop ownership instead or cancel, if user select drop ownership attempt to drop ownership. Also meanings have owner_id if user is not owner or he is not admin do not show update or delete buttons, that user can only add meanings and attach/remove sentences to own meanings (after request being made supabase will decide like I told before).
 - for meaning and sentence creation open a popover (installed already from shadcn), user will make changes in view inside popover.
+
+New implementation request(s) for Coder LLM:
+- Create a /rl-items page like vocabs page, check out /vocabs page as it sets an example, place private list of rl_items, and create new button, on button click create a rl_item by INSERT, add to private list then navigate to /rl-items?id={id} page, as in vocabs page beside the details button also opens related /rl-items?id={id} page
+- Create detailed page /rl-items?id={id},
+this page has a header as title of rl_item (will be initially null so display "Unnamed Content"), user has not option to edit,
+just bottom of title, place a section seperated vertically so they should be side by side (for [vocab and meanings pair] and [list area]), this two areas should be seperated into two vertically, in the area of pairs there should be initially listed 3 pairs, since user have to select vocab first in the list area (the one in the right), last added 30 items of private vocab list, once user selects vocab delist vocabs and list all (ownership is not filtered) meanings of this vocabulary (do not show example sentences here)
+user can add and remove 4th row of vocab meaning pair, but can not exceed 4 or go under 3, selecting one item on left area (vocab or meaning) must make right area adapt itself.
+vocab-meaning pair should be unique for one rl_item so in right area disabled meaning option already selected (meanings cannot be meaning of two vocabs).
+- after vocab-meanings pair selection place a text area for user instructions with placeholder text. (context: this text will be injected inside prompt to inform llm (edge function's job again))
+- after above components place a "Create Reading material" button, this button must be disabled until vocab-meaning pairs are satisfy the conditions.
+- after "Create Reading material" button there should be a large area for created reading text for given vocabularies and meanings. this text cannot be editable by user.
+- state of l_item_id vastly affects this page's functionality and updateability of rl_item:
+if l_item_id is null initially and even after user have reading material created, as long as l_item_id is null user can re-generate new reading material or delete rl_item directly (without needing to raise flag of deleted_requested)
+but if l_item_id is not null instead of change text of delete button to "delete request" and change behavior to update deleted_requested to true
+if l_item_id is full of zeros that means listening material is being generated (listening material generation will be handled in aws lambda asynchronously and takes for a while)
+- listening material is for another iteration so ignore l_item ui component but consider its null or not null state.
+- I want to remark again: only SELECT is available for client (js supabase) for table rl_item_vocabs_and_meanings. So do not try to insert, update or delete items (edge function will handle all of these).
+- edge function will return all the new state of rl_item so trust on the response and do not fetch updated rl_item after it (edge function's response).
+- access and use edge function with name /temp-create-reading-text. (example url: https://adsyqluqnekrmgrjzbfl.supabase.co/functions/v1/temp-create-reading-text)
+input parameters are: id of rl_item, list of [id of meanings] and instructions as text (notice there is no vocab id since meanings id conveys all necessary information).
+output of this function: new "title" (title column), created reading text "r_item" and new "l_item_id", update page according to response.
+- do not give an option to to drop ownership of rl_item either on detailed page or private list of rl_items. drop ownership functionality is not a subject of these pages for now.

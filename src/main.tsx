@@ -17,6 +17,8 @@ import ListsPage from "./pages/Lists";
 import DiscoverPage from "./pages/Discover";
 import VocabDetail from "./pages/VocabDetail";
 import ListDetail from "./pages/ListDetail";
+import RlItemsPage from "./pages/RlItems";
+import RlItemDetail from "./pages/RlItemDetail";
 
 import {
   Drawer,
@@ -75,6 +77,15 @@ function ListsRoute() {
   return <ListsPage />;
 }
 
+function RlItemsRoute() {
+  const [search] = useSearchParams();
+  const id = search.get("id");
+  if (id) {
+    return <RlItemDetail />;
+  }
+  return <RlItemsPage />;
+}
+
 function RootRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
@@ -130,7 +141,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function Layout() {
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<{ id?: string } | null>(null);
   const [tokens, setTokens] = useState<{ free: number; paid: number } | null>(
     null
   );
@@ -246,8 +257,11 @@ function Layout() {
             <Link to="/vocabs" className="text-sm hover:underline">
               My Vocabulary
             </Link>
-            <Link to="/lists" className="text-sm hover:underline">
+            <Link to="/rl-items" className="text-sm hover:underline">
               Reading/Listening Material
+            </Link>
+            <Link to="/lists" className="text-sm hover:underline">
+              Lists
             </Link>
 
             {user && (
@@ -306,6 +320,11 @@ function Layout() {
                     <NavigationMenuLink asChild>
                       <Link to="/vocabs" className="text-sm">
                         My Vocabulary
+                      </Link>
+                    </NavigationMenuLink>
+                    <NavigationMenuLink asChild>
+                      <Link to="/rl-items" className="text-sm">
+                        Reading
                       </Link>
                     </NavigationMenuLink>
                     <NavigationMenuLink asChild>
@@ -372,6 +391,10 @@ const router = createBrowserRouter([
       },
       // only /vocabs requires auth (and its detail view)
       { path: "vocabs", element: <RequireAuth>{<VocabsRoute />}</RequireAuth> },
+      {
+        path: "rl-items",
+        element: <RequireAuth>{<RlItemsRoute />}</RequireAuth>,
+      },
       // lists and discover no longer force redirect to login here
       { path: "lists", element: <ListsRoute /> },
       {
