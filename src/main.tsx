@@ -17,6 +17,7 @@ import ListsPage from "./pages/Lists";
 import DiscoverPage from "./pages/Discover";
 import VocabDetail from "./pages/VocabDetail";
 import ListDetail from "./pages/ListDetail";
+import RlListDetail from "./pages/RlListDetail";
 import RlItemsPage from "./pages/RlItems";
 import RlItemDetail from "./pages/RlItemDetail";
 
@@ -397,6 +398,8 @@ const router = createBrowserRouter([
       },
       // lists and discover no longer force redirect to login here
       { path: "lists", element: <ListsRoute /> },
+      // dedicated rl-lists route (public and mirrors /lists?id= style)
+      { path: "rl-lists", element: <RlListDetail /> },
       {
         path: "discover",
         element: <DiscoverPage />,

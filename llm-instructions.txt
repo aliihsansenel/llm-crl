@@ -166,10 +166,10 @@ if l_item_id is full of zeros that means listening material is being generated (
 input parameters are: id of rl_item, list of [id of meanings] and instructions as text (notice there is no vocab id since meanings id conveys all necessary information).
 output of this function: new "title" (title column), created reading text "r_item" and new "l_item_id", update page according to response.
 - do not give an option to to drop ownership of rl_item either on detailed page or private list of rl_items. drop ownership functionality is not a subject of these pages for now.
-
-New implementation request(s) for Coder LLM:
 - in rl-items page add "remove" button beside rl_items of p_rl_list_items. on click first remove from p_rl_list_items then attempt to delete item from rl_items if user is owner and l_item_id is null if you rejected by supabase update delete_requested to true.
 - in rl_item's dedicated page delete button should remove item from user's p_rl_list_items, and if owner of rl_item is user open an alert_dialog asks if user wants to delete rl_item itself. If user says yes: cehck if l_item_id is null if yes delete item from rl_items if you rejected by supabase update delete_requested to true.
 - /lists page now should include owned rl_lists and subscribed rl lists, to prevent confusion rename currently existing headers in ui in that page, but do not change any url
 - create dedicated rl_list page, (dedicated page of a rl_list) page's url should be /rl-lists?id={id}
 - do not change dedicated vocabulary list page urls
+
+New implementation request(s) for Coder LLM:
