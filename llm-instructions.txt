@@ -11,7 +11,6 @@ Project's bussiness logic:
   Implementations for Creating reading/listening material and corresponding lists are subject to another phase so Coder LLM should not implement pages or components for now.
 
 
-
 Tables' column details explained in another file, in that file rls policies or column based rectrictions are not written. However some of the rls policies, and column based restrictions explained here,
 Tables and interactions of users with different roles (this sections have code creation instructions for Coder LLM):
 
@@ -61,11 +60,13 @@ p_rl_list_items (table): similar logic as p_vocab_list_items: items of personal 
 
 rl_item_vocabs_and_meanings (table): vocab and meanings of a spesific rl_item
 
-rl_list_items (table): will be implemented in another iteration.
+We are in the iteration, these table's usages are also needed to be in ui:
 
-rl_lists (table): will be implemented in another iteration.
+rl_list_items (table): public list's items for rl_item, user can delete or insert to owned list items.
 
-rl_lists_sub (table): will be implemented in another iteration.
+rl_lists (table): public lists for rl_item, user can delete, insert and update, owned lists.
+
+rl_lists_sub (table): user can subscribe or unsubscribe to rl_lists.
 
 Finally, instructions for building ui for Coder LLM:
 
@@ -145,8 +146,6 @@ beside vocabulary items in first list place a remove button, but remove action m
 - In discover page vocabs listed as you know, There is details option which lists meanings (itself) but not sentences, thats what I wanted. Now I want same in /vocabs for private list items. There is remove button in private list items place details button before remove button.
 - In vocabs details page I see meanings listed with example sentences that is good. But I need buttons and features for creating, deleting meanings and sentences. Keep in mind any authenticated user can create meanings but update and delete can be rejected by (supabase's foreign key restrictions) so if update or delete rejected show user an alert dialog says that user can drop ownership instead or cancel, if user select drop ownership attempt to drop ownership. Also meanings have owner_id if user is not owner or he is not admin do not show update or delete buttons, that user can only add meanings and attach/remove sentences to own meanings (after request being made supabase will decide like I told before).
 - for meaning and sentence creation open a popover (installed already from shadcn), user will make changes in view inside popover.
-
-New implementation request(s) for Coder LLM:
 - Create a /rl-items page like vocabs page, check out /vocabs page as it sets an example, place private list of rl_items, and create new button, on button click create a rl_item by INSERT, add to private list then navigate to /rl-items?id={id} page, as in vocabs page beside the details button also opens related /rl-items?id={id} page
 - Create detailed page /rl-items?id={id},
 this page has a header as title of rl_item (will be initially null so display "Unnamed Content"), user has not option to edit,
@@ -167,3 +166,10 @@ if l_item_id is full of zeros that means listening material is being generated (
 input parameters are: id of rl_item, list of [id of meanings] and instructions as text (notice there is no vocab id since meanings id conveys all necessary information).
 output of this function: new "title" (title column), created reading text "r_item" and new "l_item_id", update page according to response.
 - do not give an option to to drop ownership of rl_item either on detailed page or private list of rl_items. drop ownership functionality is not a subject of these pages for now.
+
+New implementation request(s) for Coder LLM:
+- in rl-items page add "remove" button beside rl_items of p_rl_list_items. on click first remove from p_rl_list_items then attempt to delete item from rl_items if user is owner and l_item_id is null if you rejected by supabase update delete_requested to true.
+- in rl_item's dedicated page delete button should remove item from user's p_rl_list_items, and if owner of rl_item is user open an alert_dialog asks if user wants to delete rl_item itself. If user says yes: cehck if l_item_id is null if yes delete item from rl_items if you rejected by supabase update delete_requested to true.
+- /lists page now should include owned rl_lists and subscribed rl lists, to prevent confusion rename currently existing headers in ui in that page, but do not change any url
+- create dedicated rl_list page, (dedicated page of a rl_list) page's url should be /rl-lists?id={id}
+- do not change dedicated vocabulary list page urls

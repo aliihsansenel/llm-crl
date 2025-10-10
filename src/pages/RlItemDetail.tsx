@@ -6,6 +6,16 @@ import supabase, {
 } from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "../components/ui/alert-dialog";
 
 type Row = {
   vocabId?: number;
@@ -228,20 +238,103 @@ export default function RlItemDetail() {
     }
   }
 
-  // Delete directly when l_item_id is null, otherwise set delete_requested = true
-  async function handleDeleteOrRequest() {
+  // Remove the rl_item from the current user's private list
+  async function removeFromPrivateList() {
+    if (!rlItem) return { ok: false, error: new Error("no rl item") };
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) return { ok: false, error: new Error("not signed in") };
+
+      const { data: pList } = await supabase
+        .from("p_rl_lists")
+        .select("id")
+        .eq("owner_id", userId)
+        .limit(1)
+        .maybeSingle();
+      const listId = pList?.id;
+      if (!listId) {
+        return { ok: false, error: new Error("private list not found") };
+      }
+
+      const delRes = await supabase
+        .from("p_rl_list_items")
+        .delete()
+        .match({ p_rl_list_id: listId, rl_item_id: rlItem.id });
+
+      if (delRes.error) {
+        // do not block flow for UI; return error info
+        return { ok: false, error: delRes.error };
+      }
+
+      return { ok: true };
+    } catch (err: unknown) {
+      return { ok: false, error: err };
+    }
+  }
+
+  // Click handler for Delete button: always remove from private list first.
+  // If the current user is the owner, open confirm dialog to delete the rl_item itself.
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+
+  async function handleDeleteClick() {
     if (!rlItem) return;
     setMessage(null);
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setMessage("You must be signed in to remove items.");
+        return;
+      }
+
+      const removed = await removeFromPrivateList();
+      if (!removed.ok) {
+        console.warn("failed to remove from private list", removed.error);
+        // proceed: per requirements removal attempt should be made; continue flow
+      } else {
+        setMessage("Removed from your private list.");
+      }
+
+      // if current user is owner, ask whether they want to delete the rl_item itself
+      if (rlItem.owner_id === userId) {
+        setShowConfirmDelete(true);
+        return;
+      }
+
+      // if not owner, navigate back to listing
+      navigate("/rl-items");
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Confirmed deletion of the rl_item itself (owner only)
+  async function handleConfirmDelete() {
+    if (!rlItem) return;
+    setMessage(null);
+    setShowConfirmDelete(false);
     try {
       if (!rlItem.l_item_id) {
         const del = await supabase
           .from("rl_items")
           .delete()
           .match({ id: rlItem.id });
-        if (del.error) throw del.error;
-        setMessage("Deleted.");
-        navigate("/rl-items");
-        return;
+        if (del.error) {
+          // if deletion rejected, set delete_requested = true
+          const upd = await supabase
+            .from("rl_items")
+            .update({ delete_requested: true })
+            .match({ id: rlItem.id });
+          if (upd.error) {
+            throw upd.error;
+          }
+          setRlItem((prev) =>
+            prev ? { ...prev, delete_requested: true } : prev
+          );
+          setMessage("Delete requested.");
+        } else {
+          setMessage("Deleted.");
+          navigate("/rl-items");
+        }
       } else {
         const upd = await supabase
           .from("rl_items")
@@ -428,10 +521,31 @@ export default function RlItemDetail() {
         >
           {creating ? "Working..." : "Create Reading material"}
         </Button>
-        <Button variant="destructive" onClick={handleDeleteOrRequest}>
+        <Button variant="destructive" onClick={handleDeleteClick}>
           {rlItem.l_item_id ? "Delete request" : "Delete"}
         </Button>
       </div>
+
+      {/* Confirm delete dialog for owners */}
+      <AlertDialog open={showConfirmDelete} onOpenChange={setShowConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete reading/listening item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this reading/listening item? If
+              listening material exists it will instead raise a delete request.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowConfirmDelete(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="mt-6 border p-4 rounded bg-muted/10">
         <div className="font-semibold mb-2">Generated Reading Text</div>

@@ -147,6 +147,70 @@ export default function RlItemsPage() {
     }
   }
 
+  // Remove an rl_item from the user's private list and attempt to delete the rl_item itself
+  async function handleRemoveFromPrivateAndMaybeDelete(
+    itemId: number,
+    ownerId?: string | null,
+    lItemId?: string | null
+  ) {
+    setError(null);
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setError("You must be signed in to remove items.");
+        return;
+      }
+
+      // find user's private rl list
+      const { data: pList } = await supabase
+        .from("p_rl_lists")
+        .select("id")
+        .eq("owner_id", userId)
+        .limit(1)
+        .maybeSingle();
+      const listId = pList?.id;
+      if (!listId) {
+        setError("Private list not found.");
+        return;
+      }
+
+      // remove the item from the private list
+      const delRes = await supabase
+        .from("p_rl_list_items")
+        .delete()
+        .match({ p_rl_list_id: listId, rl_item_id: itemId });
+      if (delRes.error) {
+        throw delRes.error;
+      }
+
+      // optimistically remove from UI
+      setItems((prev) => prev.filter((it) => it.id !== itemId));
+
+      // if the current user is the owner and there is no l_item_id, attempt to delete rl_item
+      if (ownerId === userId && !lItemId) {
+        const del = await supabase
+          .from("rl_items")
+          .delete()
+          .match({ id: itemId });
+        if (del.error) {
+          // if deletion rejected, set delete_requested = true
+          const upd = await supabase
+            .from("rl_items")
+            .update({ delete_requested: true })
+            .match({ id: itemId });
+          if (upd.error) {
+            console.warn(
+              "failed to request delete after delete rejection",
+              upd.error
+            );
+          }
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   useEffect(() => {
     loadPrivateRlItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,6 +255,19 @@ export default function RlItemsPage() {
               <div className="flex gap-2">
                 <Button size="sm" asChild>
                   <Link to={`/rl-items?id=${it.id}`}>Details</Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() =>
+                    handleRemoveFromPrivateAndMaybeDelete(
+                      it.id,
+                      it.owner_id,
+                      it.l_item_id
+                    )
+                  }
+                >
+                  Remove
                 </Button>
               </div>
             </li>
