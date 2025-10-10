@@ -177,8 +177,6 @@ output of this function: new "title" (title column), created reading text "r_ite
 - add level_id to the edge functions request body (not corresponding level.itself, just send level_id)
 - request to edge function should include authenticated user's jwt token, I modified code to desired version do not change into anon user again.
 - changed edge function to /create-reading-text
-
-New implementation request(s) for Coder LLM:
 - on page load fetch necessary rl_item_vocabs_and_meanings and set vocab meaning pairs (pairs that can be 3-4 ), and also instructions from rl_item I see them empty, fill level dropdown with level_id from rl_item, if it is null fill from user level_id settings.
 - edge function in RlItemDetail.tsx page used returns this as response so please fill necessary components with this information after "create reding text" receives response from edge function:
    return new Response(JSON.stringify({
@@ -194,3 +192,6 @@ New implementation request(s) for Coder LLM:
         paid: paidLeft
       }
     })
+
+New implementation request(s) for Coder LLM:
+- on page load now everything set correctly, but since response of edge function takes for a while I want you to increase timeout to 20 seconds, and I see red color of request in browser even if response is 200 and fields are not completed with edge functions response.

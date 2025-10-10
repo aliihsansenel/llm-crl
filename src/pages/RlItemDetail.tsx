@@ -117,30 +117,55 @@ export default function RlItemDetail() {
             .limit(4);
           if (pairsErr) throw pairsErr;
 
-          if (
-            pairsRes &&
-            (
-              pairsRes as {
-                vocab_id: number;
-                meaning_id: number;
-                vocabs?: { id: number; itself: string } | null;
-                meanings?: { id: number; itself: string } | null;
-              }[]
-            ).length
-          ) {
-            const mapped: Row[] = (
-              pairsRes as {
-                vocab_id: number;
-                meaning_id: number;
-                vocabs?: { id: number; itself: string } | null;
-                meanings?: { id: number; itself: string } | null;
-              }[]
-            ).map((p) => ({
-              vocabId: p.vocab_id,
-              vocabText: p.vocabs?.itself ?? undefined,
-              meaningId: p.meaning_id,
-              meaningText: p.meanings?.itself ?? undefined,
-            }));
+          // pairsRes may include nested relation fields as arrays (vocabs: [{...}]) depending on response.
+          // Normalize defensively without using `any` so types remain safe.
+          if (pairsRes && Array.isArray(pairsRes) && pairsRes.length > 0) {
+            const mapped: Row[] = pairsRes.map((p) => {
+              const obj = p as Record<string, unknown>;
+
+              // extract nested vocabs field (may be array or object)
+              let vocabObj: Record<string, unknown> | undefined;
+              if (Array.isArray(obj.vocabs)) {
+                vocabObj = (obj.vocabs as unknown[])[0] as
+                  | Record<string, unknown>
+                  | undefined;
+              } else if (obj.vocabs && typeof obj.vocabs === "object") {
+                vocabObj = obj.vocabs as Record<string, unknown>;
+              }
+
+              // extract nested meanings field (may be array or object)
+              let meaningObj: Record<string, unknown> | undefined;
+              if (Array.isArray(obj.meanings)) {
+                meaningObj = (obj.meanings as unknown[])[0] as
+                  | Record<string, unknown>
+                  | undefined;
+              } else if (obj.meanings && typeof obj.meanings === "object") {
+                meaningObj = obj.meanings as Record<string, unknown>;
+              }
+
+              const vocabId =
+                typeof obj.vocab_id === "number"
+                  ? (obj.vocab_id as number)
+                  : Number(obj.vocab_id);
+              const meaningId =
+                typeof obj.meaning_id === "number"
+                  ? (obj.meaning_id as number)
+                  : Number(obj.meaning_id);
+
+              return {
+                vocabId,
+                vocabText:
+                  typeof vocabObj?.itself === "string"
+                    ? (vocabObj.itself as string)
+                    : undefined,
+                meaningId,
+                meaningText:
+                  typeof meaningObj?.itself === "string"
+                    ? (meaningObj.itself as string)
+                    : undefined,
+              } as Row;
+            });
+
             // ensure minimum 3 rows and maximum 4
             while (mapped.length < 3) mapped.push({});
             setRows(mapped.slice(0, 4));
@@ -293,7 +318,6 @@ export default function RlItemDetail() {
     return rows.map((r) => r.meaningId as number);
   }
 
-  // Invoke the edge function and rely on its returned state per instructions (do not re-fetch rl_item after)
   async function handleCreateReading() {
     if (!rlItem) return;
     setMessage(null);
@@ -309,51 +333,34 @@ export default function RlItemDetail() {
     }
 
     setCreating(true);
+
+    const meaningIds = selectedMeaningIds();
+
     try {
-      const meaningIds = selectedMeaningIds();
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+      // Use supabase.functions.invoke as requested
+      const { data, error } = await supabase.functions.invoke(
+        "create-reading-text",
+        {
+          body: {
+            id: rlItem.id,
+            meanings: meaningIds,
+            instructions,
+            level_id: pageLevelId,
+          },
+        }
+      );
 
-      // Get current user session's JWT
-      const session = await supabase.auth.getSession();
-      const jwt = session?.data?.session?.access_token;
-      if (!jwt) {
-        setMessage("Unable to get user session, please re-login.");
-        setCreating(false);
-        return;
+      if (error) {
+        throw error;
       }
 
-      // Use the temp-create-reading-text edge function per instructions
-      const url = `${SUPABASE_URL}/functions/v1/create-reading-text`;
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify({
-          id: rlItem.id,
-          meanings: meaningIds,
-          instructions,
-          level_id: pageLevelId,
-        }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`edge function failed: ${res.status} ${text}`);
-      }
-      const data = await res.json();
-
-      // edge function expected to return: { ok: true, rl_item: { id, title, text, level_id }, tokens: {...} }
+      // data is the response from the edge function (parsed automatically)
+      // expected: { ok: true, rl_item: { id, title, text, level_id }, tokens: {...} }
       if (!data || !data.ok || !data.rl_item) {
         throw new Error("edge function returned unexpected response");
       }
 
-      const returned = data.rl_item as {
-        id: number;
-        title?: string | null;
-        text?: string | null;
-        level_id?: number | null;
-      };
+      const returned = data.rl_item;
 
       setRlItem((prev) =>
         prev
@@ -373,7 +380,14 @@ export default function RlItemDetail() {
 
       setMessage("Reading material created.");
     } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : String(err));
+      // supabase.functions.invoke will throw error on abort or network error
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setMessage("Edge function request timed out after 20 seconds.");
+      } else if (err instanceof Error) {
+        setMessage(err.message);
+      } else {
+        setMessage(String(err));
+      }
     } finally {
       setCreating(false);
     }
