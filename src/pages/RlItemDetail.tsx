@@ -16,6 +16,13 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "../components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from "../components/ui/dropdown-menu";
 
 type Row = {
   vocabId?: number;
@@ -57,6 +64,13 @@ export default function RlItemDetail() {
 
   const [instructions, setInstructions] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // levels and page-level selection (default from user settings)
+  const [levels, setLevels] = useState<{ id: number; itself: string }[]>([]);
+  const [pageLevelId, setPageLevelId] = useState<number | null>(null);
+  const [userSettingsLevelId, setUserSettingsLevelId] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -109,6 +123,37 @@ export default function RlItemDetail() {
                 .limit(30);
               if (vocabs) setPrivateVocabs(vocabs);
             }
+          }
+
+          // load user settings.level_id and available levels
+          try {
+            const { data: sRes, error: sErr } = await supabase
+              .from("settings")
+              .select("level_id")
+              .eq("user_id", userId)
+              .maybeSingle();
+            if (!sErr && sRes) {
+              const lvl = sRes.level_id ?? null;
+              setUserSettingsLevelId(lvl);
+              // initialize pageLevelId from user's setting if not set yet
+              setPageLevelId((prev) => (prev == null ? lvl : prev));
+            }
+          } catch (e) {
+            // non-fatal
+            // eslint-disable-next-line no-console
+            console.warn("failed to load user settings", e);
+          }
+
+          try {
+            const { data: lvls } = await supabase
+              .from("levels")
+              .select("id,itself")
+              .order("id", { ascending: true });
+            if (lvls) setLevels(lvls);
+          } catch (e) {
+            // non-fatal
+            // eslint-disable-next-line no-console
+            console.warn("failed to load levels", e);
           }
         }
       } catch (err: unknown) {
@@ -195,23 +240,39 @@ export default function RlItemDetail() {
       setMessage("Please select vocab and meaning for all rows.");
       return;
     }
+
+    // require a selected level (nullable allowed elsewhere, but page requires a level)
+    if (pageLevelId == null) {
+      setMessage("Please select a level before creating reading material.");
+      return;
+    }
+
     setCreating(true);
     try {
       const meaningIds = selectedMeaningIds();
       const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-      const SUPABASE_ANON_KEY = import.meta.env
-        .VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+      // Get current user session's JWT
+      const session = await supabase.auth.getSession();
+      const jwt = session?.data?.session?.access_token;
+      if (!jwt) {
+        setMessage("Unable to get user session, please re-login.");
+        setCreating(false);
+        return;
+      }
+
       const url = `${SUPABASE_URL}/functions/v1/temp-create-reading-text`;
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${jwt}`,
         },
         body: JSON.stringify({
           id: rlItem.id,
           meanings: meaningIds,
           instructions,
+          level_id: pageLevelId,
         }),
       });
       if (!res.ok) {
@@ -504,6 +565,37 @@ export default function RlItemDetail() {
       </div>
 
       <div className="mt-4">
+        <div className="mb-2 font-semibold">Level</div>
+        <div className="mb-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-full text-left">
+                {pageLevelId
+                  ? (levels.find((l) => l.id === pageLevelId)?.itself ??
+                    `Level ${pageLevelId}`)
+                  : userSettingsLevelId
+                    ? (levels.find((l) => l.id === userSettingsLevelId)
+                        ?.itself ?? `Level ${userSettingsLevelId}`)
+                    : "No level selected"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>Select level</DropdownMenuLabel>
+              {levels.map((l) => (
+                <DropdownMenuItem
+                  key={l.id}
+                  onClick={() => setPageLevelId(l.id)}
+                >
+                  {l.itself}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onClick={() => setPageLevelId(null)}>
+                No level
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         <div className="mb-2 font-semibold">Instructions</div>
         <Textarea
           value={instructions}
@@ -517,7 +609,7 @@ export default function RlItemDetail() {
       <div className="flex gap-2 mt-4">
         <Button
           onClick={handleCreateReading}
-          disabled={!allRowsValid() || creating}
+          disabled={!allRowsValid() || creating || pageLevelId == null}
         >
           {creating ? "Working..." : "Create Reading material"}
         </Button>

@@ -8,6 +8,13 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Switch } from "../components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from "../components/ui/dropdown-menu";
 
 function errToMessage(err: unknown): string {
   if (!err) return String(err);
@@ -49,6 +56,7 @@ export default function ProfilePage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [settings, setSettings] = useState<SettingsRow | null>(null);
+  const [levels, setLevels] = useState<{ id: number; itself: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -138,6 +146,28 @@ export default function ProfilePage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otherId]);
+
+  // load levels once for dropdown
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("levels")
+          .select("id,itself")
+          .order("id", { ascending: true });
+        if (!mounted) return;
+        if (data) setLevels(data);
+      } catch (e) {
+        // non-fatal
+        // eslint-disable-next-line no-console
+        console.warn("failed to load levels", e);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function handleProfileSave(e?: React.FormEvent) {
     e?.preventDefault();
@@ -313,6 +343,50 @@ export default function ProfilePage() {
             </div>
           ) : (
             <form onSubmit={handleSettingsSave} className="space-y-3">
+              {/* Level selector */}
+              <div>
+                <div className="text-sm mb-1 font-medium">
+                  Your reading material will be generated on the level you
+                  chose.
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full text-left">
+                      {settings?.level_id
+                        ? (levels.find((l) => l.id === settings.level_id)
+                            ?.itself ?? `Level ${settings.level_id}`)
+                        : "No level selected"}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuLabel>Select level</DropdownMenuLabel>
+                    {levels.map((l) => (
+                      <DropdownMenuItem
+                        key={l.id}
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            level_id: l.id,
+                          })
+                        }
+                      >
+                        {l.itself}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          level_id: null,
+                        })
+                      }
+                    >
+                      No level
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
               <label className="flex items-center gap-3">
                 <Switch
                   checked={settings.auto_confirm_1}

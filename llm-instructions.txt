@@ -47,7 +47,7 @@ What are the tables need to be connected with client according to instructions? 
 first and most importantly: rl_items and rl_item_vocabs_and_meanings. (code related to other than these two tables of this phase will be implemented in another iteration so ignore other rl related tables).
 Notice: RLS policies and column based restrictions in rl_items table are very restrictive for both admin and standart_user, since business logic is complex and state based, most of the update operations on this table will be handled by a custom edge function in server. Do not attempt to suggest or write code for that edge function, Developer will specify input and outputs of request to that function.
 restrictions was set for insert in supabase: REVOKE INSERT (id, title, instructions, r_item, l_item_id, delete_requested, created_at, modified_at) ON public.rl_items FROM authenticated;
-restrictions was set for update in supabase REVOKE UPDATE (id, title, instructions, r_item, l_item_id, created_at, modified_at) ON public.rl_items FROM authenticated;
+restrictions was set for update in supabase REVOKE UPDATE (id, title, instructions, r_item, l_item_id, level_id, created_at, modified_at) ON public.rl_items FROM authenticated;
 on the other hand only SELECT available for client (js supabase client) for table rl_item_vocabs_and_meanings. Edge function will handle db operations.
 
 Context: rl abbrevation stands for reading and listening, user will select meanings of 3-4 different vocabulary. User can select only on meaning of a vocabulary, but since user can select same vocab then choose another meaning indirectly multiple meaning selection is allowed but in the final a spesific rl_item only can be related to maximum 4 row of table rl_item_vocabs_and_meanings, there is a limit.  
@@ -173,3 +173,8 @@ output of this function: new "title" (title column), created reading text "r_ite
 - do not change dedicated vocabulary list page urls
 
 New implementation request(s) for Coder LLM:
+- add a dropwdown-menu (shadcn) to profile page under settings just before auto confirm settings, present to user as "Your reading material will be generated on the level you chose."
+- add same dropwdown-menu (shadcn) to RlItemDetail.tsx page, and set default value match the level user set in settings (is nullable do not forget).
+- on RlItemDetail.tsx page "Create Reading material" must be disabled if level is null
+- add level_id to the edge functions request body (not corresponding level.itself, just send level_id)
+- request to edge function should include authenticated user's jwt token, I modified code to desired version do not change into anon user again.
