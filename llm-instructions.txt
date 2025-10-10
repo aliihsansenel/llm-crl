@@ -171,10 +171,26 @@ output of this function: new "title" (title column), created reading text "r_ite
 - /lists page now should include owned rl_lists and subscribed rl lists, to prevent confusion rename currently existing headers in ui in that page, but do not change any url
 - create dedicated rl_list page, (dedicated page of a rl_list) page's url should be /rl-lists?id={id}
 - do not change dedicated vocabulary list page urls
-
-New implementation request(s) for Coder LLM:
 - add a dropwdown-menu (shadcn) to profile page under settings just before auto confirm settings, present to user as "Your reading material will be generated on the level you chose."
 - add same dropwdown-menu (shadcn) to RlItemDetail.tsx page, and set default value match the level user set in settings (is nullable do not forget).
 - on RlItemDetail.tsx page "Create Reading material" must be disabled if level is null
 - add level_id to the edge functions request body (not corresponding level.itself, just send level_id)
 - request to edge function should include authenticated user's jwt token, I modified code to desired version do not change into anon user again.
+- changed edge function to /create-reading-text
+
+New implementation request(s) for Coder LLM:
+- on page load fetch necessary rl_item_vocabs_and_meanings and set vocab meaning pairs (pairs that can be 3-4 ), and also instructions from rl_item I see them empty, fill level dropdown with level_id from rl_item, if it is null fill from user level_id settings.
+- edge function in RlItemDetail.tsx page used returns this as response so please fill necessary components with this information after "create reding text" receives response from edge function:
+   return new Response(JSON.stringify({
+      ok: true,
+      rl_item: {
+        id,
+        title: parsed.title,
+        text: parsed.text,
+        level_id
+      },
+      tokens: {
+        free: freeLeft,
+        paid: paidLeft
+      }
+    })

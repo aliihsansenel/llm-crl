@@ -38,6 +38,8 @@ type RlItemRow = {
   l_item_id?: string | null;
   owner_id?: string | null;
   delete_requested?: boolean | null;
+  instructions?: string | null;
+  level_id?: number | null;
 };
 
 export default function RlItemDetail() {
@@ -83,15 +85,74 @@ export default function RlItemDetail() {
           return;
         }
 
-        // load rl_item row
+        // load rl_item row (include instructions & level_id)
         const { data: rRes, error: rErr } = await supabase
           .from("rl_items")
-          .select("id,title,r_item,l_item_id,owner_id,delete_requested")
+          .select(
+            "id,title,r_item,l_item_id,owner_id,delete_requested,instructions,level_id"
+          )
           .eq("id", id)
           .maybeSingle();
         if (rErr) throw rErr;
         if (!mounted) return;
         setRlItem(rRes ?? null);
+
+        // populate instructions from rl_item (if present)
+        if (rRes?.instructions) {
+          setInstructions(rRes.instructions);
+        }
+
+        // initialize pageLevelId from rl_item.level_id if present
+        if (rRes?.level_id != null) {
+          setPageLevelId(rRes.level_id);
+        }
+
+        // load any pre-existing vocab-meaning pairs for this rl_item
+        try {
+          const { data: pairsRes, error: pairsErr } = await supabase
+            .from("rl_item_vocabs_and_meanings")
+            .select("vocab_id,meaning_id,vocabs(id,itself),meanings(id,itself)")
+            .eq("rl_item_id", id)
+            .order("id", { ascending: true })
+            .limit(4);
+          if (pairsErr) throw pairsErr;
+
+          if (
+            pairsRes &&
+            (
+              pairsRes as {
+                vocab_id: number;
+                meaning_id: number;
+                vocabs?: { id: number; itself: string } | null;
+                meanings?: { id: number; itself: string } | null;
+              }[]
+            ).length
+          ) {
+            const mapped: Row[] = (
+              pairsRes as {
+                vocab_id: number;
+                meaning_id: number;
+                vocabs?: { id: number; itself: string } | null;
+                meanings?: { id: number; itself: string } | null;
+              }[]
+            ).map((p) => ({
+              vocabId: p.vocab_id,
+              vocabText: p.vocabs?.itself ?? undefined,
+              meaningId: p.meaning_id,
+              meaningText: p.meanings?.itself ?? undefined,
+            }));
+            // ensure minimum 3 rows and maximum 4
+            while (mapped.length < 3) mapped.push({});
+            setRows(mapped.slice(0, 4));
+          } else {
+            // ensure default 3 empty rows if no pairs provided
+            setRows([{}, {}, {}]);
+          }
+        } catch (e) {
+          // non-fatal - log and continue
+          // eslint-disable-next-line no-console
+          console.warn("failed to load rl_item vocab-meaning pairs", e);
+        }
 
         // load private vocabs (last 30)
         const userId = await getCachedUserId();
@@ -261,9 +322,10 @@ export default function RlItemDetail() {
         return;
       }
 
-      const url = `${SUPABASE_URL}/functions/v1/temp-create-reading-text`;
+      // Use the temp-create-reading-text edge function per instructions
+      const url = `${SUPABASE_URL}/functions/v1/create-reading-text`;
       const res = await fetch(url, {
-        method: "POST",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${jwt}`,
@@ -280,17 +342,35 @@ export default function RlItemDetail() {
         throw new Error(`edge function failed: ${res.status} ${text}`);
       }
       const data = await res.json();
-      // expected keys: title, r_item, l_item_id
+
+      // edge function expected to return: { ok: true, rl_item: { id, title, text, level_id }, tokens: {...} }
+      if (!data || !data.ok || !data.rl_item) {
+        throw new Error("edge function returned unexpected response");
+      }
+
+      const returned = data.rl_item as {
+        id: number;
+        title?: string | null;
+        text?: string | null;
+        level_id?: number | null;
+      };
+
       setRlItem((prev) =>
         prev
           ? {
               ...prev,
-              title: data.title,
-              r_item: data.r_item,
-              l_item_id: data.l_item_id,
+              title: returned.title ?? prev.title,
+              r_item: returned.text ?? prev.r_item,
+              level_id: returned.level_id ?? prev.level_id,
             }
           : prev
       );
+
+      // if edge returned a level, update page level too
+      if (returned.level_id != null) {
+        setPageLevelId(returned.level_id);
+      }
+
       setMessage("Reading material created.");
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : String(err));
