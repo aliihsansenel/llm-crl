@@ -1,0 +1,27 @@
+{
+  "CORSRules": [
+      {
+          "AllowedHeaders": [
+              "*"
+          ],
+          "AllowedMethods": [
+              "GET"
+          ],
+          "AllowedOrigins": [
+            "https://llm-crl.netlify.app",
+            "http://localhost:5173"
+          ],
+          "ExposeHeaders": [],
+          "MaxAgeSeconds": 3000
+      }
+  ]
+}
+
+// aws s3 mb s3://llm-crl --region eu-central-1
+
+/*
+aws s3api put-bucket-cors \
+    --bucket llm-crl \
+    --cors-configuration file://cors.json \
+    --region eu-central-1
+*/

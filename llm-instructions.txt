@@ -179,19 +179,13 @@ output of this function: new "title" (title column), created reading text "r_ite
 - changed edge function to /create-reading-text
 - on page load fetch necessary rl_item_vocabs_and_meanings and set vocab meaning pairs (pairs that can be 3-4 ), and also instructions from rl_item I see them empty, fill level dropdown with level_id from rl_item, if it is null fill from user level_id settings.
 - edge function in RlItemDetail.tsx page used returns this as response so please fill necessary components with this information after "create reding text" receives response from edge function:
-   return new Response(JSON.stringify({
-      ok: true,
-      rl_item: {
-        id,
-        title: parsed.title,
-        text: parsed.text,
-        level_id
-      },
-      tokens: {
-        free: freeLeft,
-        paid: paidLeft
-      }
-    })
+return new Response(JSON.stringify({ok:true,rl_item:{id,title:parsed.title,text:parsed.text,level_id},tokens:{free:freeLeft,paid:paidLeft}})
+- on page load now everything set correctly, but since response of edge function takes for a while I want you to increase timeout to 20 seconds, and I see red color of request in browser even if response is 200 and fields are not completed with edge functions response.
 
 New implementation request(s) for Coder LLM:
-- on page load now everything set correctly, but since response of edge function takes for a while I want you to increase timeout to 20 seconds, and I see red color of request in browser even if response is 200 and fields are not completed with edge functions response.
+- I have created two functions, one of this publicly available https://5lklgc5015.execute-api.eu-central-1.amazonaws.com/default/create-listening-audio
+consider the new db schema I created a l_items table and connect rl_items table with foreign key relationship, so add a "create listening material" button, button should be active if l_item_id is null, if l_item_id is full of zeros it means audio file being created. if so poll rl_item every 5 seconds.
+- create a audio player component (can be simple, left out advanced improvements for another iteration if complex).
+- once audio file is created it will be ready, and be accesible with url
+- on page load do not automatically download audio file (aws outgoing traffic is subject to prices)
+- do not forget only one l_item can be created for a rl_item. Users need to create another rl_item to create another audio.

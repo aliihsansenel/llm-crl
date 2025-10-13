@@ -389,15 +389,15 @@
     "primary_key": ["id"],
     "foreign_keys": [
       {
-        "constraint_name": "rl_item_vocabs_and_meanings_vocab_id_fkey",
-        "columns": ["vocab_id"],
-        "foreign_table": "vocabs",
-        "foreign_columns": ["id"]
-      },
-      {
         "constraint_name": "rl_item_vocabs_and_meanings_rl_item_id_fkey",
         "columns": ["rl_item_id"],
         "foreign_table": "rl_items",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "rl_item_vocabs_and_meanings_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
         "foreign_columns": ["id"]
       },
       {
@@ -469,16 +469,16 @@
     "primary_key": ["id"],
     "foreign_keys": [
       {
-        "constraint_name": "meanings_vocab_id_fkey",
-        "columns": ["vocab_id"],
-        "foreign_table": "vocabs",
-        "foreign_columns": ["id"]
-      },
-      {
         "constraint_name": "meanings_owner_id_fkey",
         "columns": ["owner_id"],
         "foreign_table": null,
         "foreign_columns": null
+      },
+      {
+        "constraint_name": "meanings_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
+        "foreign_columns": ["id"]
       }
     ]
   },
@@ -622,9 +622,94 @@
     "primary_key": ["id"],
     "foreign_keys": [
       {
+        "constraint_name": "fk_rl_items_l_item_id",
+        "columns": ["l_item_id"],
+        "foreign_table": "l_items",
+        "foreign_columns": ["uid"]
+      },
+      {
         "constraint_name": "rl_items_level_id_fkey",
         "columns": ["level_id"],
         "foreign_table": "levels",
+        "foreign_columns": ["id"]
+      }
+    ]
+  },
+  "l_items": {
+    "columns": [
+      {
+        "column_name": "uid",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": "gen_random_uuid()",
+        "udt_name": "uuid",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "rl_item_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "int4",
+        "character_maximum_length": null,
+        "numeric_precision": 32,
+        "numeric_scale": 0,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "s3_key",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "public_url",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "udt_name": "text",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "is_deleted",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false",
+        "udt_name": "bool",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 6
+      }
+    ],
+    "primary_key": ["uid"],
+    "foreign_keys": [
+      {
+        "constraint_name": "fk_l_items_rl_item_id",
+        "columns": ["rl_item_id"],
+        "foreign_table": "rl_items",
         "foreign_columns": ["id"]
       }
     ]
@@ -726,16 +811,16 @@
     "primary_key": ["user_id", "rl_list_id"],
     "foreign_keys": [
       {
-        "constraint_name": "rl_lists_sub_rl_list_id_fkey",
-        "columns": ["rl_list_id"],
-        "foreign_table": "rl_lists",
-        "foreign_columns": ["id"]
-      },
-      {
         "constraint_name": "rl_lists_sub_user_id_fkey",
         "columns": ["user_id"],
         "foreign_table": null,
         "foreign_columns": null
+      },
+      {
+        "constraint_name": "rl_lists_sub_rl_list_id_fkey",
+        "columns": ["rl_list_id"],
+        "foreign_table": "rl_lists",
+        "foreign_columns": ["id"]
       }
     ]
   },
@@ -824,15 +909,15 @@
     "primary_key": ["rl_list_id", "rl_item_id"],
     "foreign_keys": [
       {
-        "constraint_name": "rl_list_items_rl_item_id_fkey",
-        "columns": ["rl_item_id"],
-        "foreign_table": "rl_items",
-        "foreign_columns": ["id"]
-      },
-      {
         "constraint_name": "rl_list_items_rl_list_id_fkey",
         "columns": ["rl_list_id"],
         "foreign_table": "rl_lists",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "rl_list_items_rl_item_id_fkey",
+        "columns": ["rl_item_id"],
+        "foreign_table": "rl_items",
         "foreign_columns": ["id"]
       }
     ]
@@ -928,16 +1013,16 @@
     "primary_key": ["user_id"],
     "foreign_keys": [
       {
-        "constraint_name": "settings_user_id_fkey",
-        "columns": ["user_id"],
-        "foreign_table": null,
-        "foreign_columns": null
-      },
-      {
         "constraint_name": "settings_level_id_fkey",
         "columns": ["level_id"],
         "foreign_table": "levels",
         "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "settings_user_id_fkey",
+        "columns": ["user_id"],
+        "foreign_table": null,
+        "foreign_columns": null
       }
     ]
   },
@@ -969,15 +1054,15 @@
     "primary_key": ["p_vocab_list_id", "vocab_id"],
     "foreign_keys": [
       {
-        "constraint_name": "p_vocab_list_items_vocab_id_fkey",
-        "columns": ["vocab_id"],
-        "foreign_table": "vocabs",
-        "foreign_columns": ["id"]
-      },
-      {
         "constraint_name": "p_vocab_list_items_p_vocab_list_id_fkey",
         "columns": ["p_vocab_list_id"],
         "foreign_table": "p_vocab_lists",
+        "foreign_columns": ["id"]
+      },
+      {
+        "constraint_name": "p_vocab_list_items_vocab_id_fkey",
+        "columns": ["vocab_id"],
+        "foreign_table": "vocabs",
         "foreign_columns": ["id"]
       }
     ]
@@ -1010,7 +1095,7 @@
     "primary_key": ["user_id", "vocab_list_id"],
     "foreign_keys": [
       {
-        "constraint_name": "vocab_lists_sub_vocab_list_id_fkey",
+        "constraint_name": "vocab_lists_sub_vocab_list_id_fkey1",
         "columns": ["vocab_list_id"],
         "foreign_table": "vocab_lists",
         "foreign_columns": ["id"]
@@ -1022,7 +1107,7 @@
         "foreign_columns": null
       },
       {
-        "constraint_name": "vocab_lists_sub_vocab_list_id_fkey1",
+        "constraint_name": "vocab_lists_sub_vocab_list_id_fkey",
         "columns": ["vocab_list_id"],
         "foreign_table": "vocab_lists",
         "foreign_columns": ["id"]
