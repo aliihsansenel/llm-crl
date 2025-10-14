@@ -365,6 +365,43 @@ export async function addVocabToPrivateList(userId: string, vocabId: number) {
   return { data: res.data };
 }
 
+// Helper: add rl_item to user's private rl list (creates p_rl_list if missing)
+export async function addRlItemToPrivateList(userId: string, rlItemId: number) {
+  // ensure private rl list exists and get its id
+  const { data } = await supabase
+    .from("p_rl_lists")
+    .select("id")
+    .eq("owner_id", userId)
+    .limit(1)
+    .maybeSingle();
+  let listId: number | undefined = data?.id;
+  if (!listId) {
+    const insertRes = await supabase
+      .from("p_rl_lists")
+      .insert({ owner_id: userId })
+      .select("id")
+      .maybeSingle();
+    if (insertRes.error || !insertRes.data) {
+      return {
+        error: insertRes.error || new Error("failed to create private rl list"),
+      };
+    }
+    listId = insertRes.data.id;
+  }
+
+  // insert item into private rl list
+  const res = await supabase
+    .from("p_rl_list_items")
+    .insert({ p_rl_list_id: listId, rl_item_id: rlItemId })
+    .select()
+    .maybeSingle();
+
+  if (res.error) {
+    return { error: res.error };
+  }
+  return { data: res.data };
+}
+
 // Helper: create a new global vocab (owned by user) and add it into user's private list
 export async function createVocabAndAddToPrivateList(
   userId: string,

@@ -187,7 +187,8 @@ consider the new db schema I created a l_items table and connect rl_items table 
 - once audio file is created it will be ready, and be accesible with url
 - on page load do not automatically download audio file (aws outgoing traffic is subject to prices)
 - do not forget only one l_item can be created for a rl_item. Users need to create another rl_item to create another audio.
-
-New implementation request(s) for Coder LLM:
 - We implemented listening material generation feature using lambda functions, but created links for accessing audio files expires, so I need you to write another lambda function to re sign url again. So check out "create-listening-audio" function as an example. and create another directory and write code there. do not modify existing functions or do not new function try to invoke them, just write new function for dedicated on this purpose. do not try to deploy functions to aws I'll handle it.
 - After completing lambda function change behaviour of RlItemDetail audio download. I want on click download behaviour kept. But since url expires, if you rejected by 403 invoke lambda function you just wrote (you will not have url of lambda function just wrote placholder code I will manually add correct lamnda function url).
+
+New implementation request(s) for Coder LLM:
+- Users need to see rl items (rl_items) and rl lists (rl_lists) in discover page, so add sections in /discover page, right now there are two tabs which are Vocabs and Lists in final there must be 4 tab options, "Vocabs", "Vocab Lists", "RL items," and "RL lists", in rl item discovery users should be able to save in their personal (private) rl items list, and in "RL lists" user shoul be able to subscribe to rl_lists
