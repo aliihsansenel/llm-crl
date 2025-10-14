@@ -416,8 +416,7 @@ export default function RlItemDetail() {
 
       // call public lambda endpoint
       const resp = await fetch(
-        // "https://5lklgc5015.execute-api.eu-central-1.amazonaws.com/default/create-listening-audio",
-        "https://x5spn63dr6zepxvnwpja2ovzse0pbdsm.lambda-url.eu-central-1.on.aws/",
+        "https://5lklgc5015.execute-api.eu-central-1.amazonaws.com/default/create-listening-audio",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -521,6 +520,112 @@ export default function RlItemDetail() {
       if (iv) window.clearInterval(iv);
     };
   }, [rlItem?.l_item_id, rlItem?.id, polling]);
+
+  // Attempt to get a fresh presigned URL by calling the resign lambda.
+  // NOTE: Replace RESIGN_LAMBDA_URL with the actual deployed lambda URL.
+  async function getFreshSignedUrl() {
+    if (!rlItem?.l_item_id) {
+      throw new Error("no l_item_id available to resign");
+    }
+
+    // obtain current user's jwt
+    const { data: sessionData, error: sessErr } =
+      await supabase.auth.getSession();
+    if (sessErr) {
+      throw sessErr;
+    }
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      throw new Error("Not authenticated (no access token)");
+    }
+
+    const RESIGN_LAMBDA_URL =
+      "https://961mjnnmx1.execute-api.eu-central-1.amazonaws.com/default/resign-listening-url"; // <- replace this
+    // "https://ol2jttxrbczf5bbyzc3phcoqqu0yiomx.lambda-url.eu-central-1.on.aws"; // <- replace this
+
+    const resp = await fetch(RESIGN_LAMBDA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jwt_token: token, l_item_uid: rlItem.l_item_id }),
+    });
+
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const errMsg = json?.error || `Status ${resp.status}`;
+      throw new Error(`Resign lambda error: ${errMsg}`);
+    }
+    if (!json?.ok || !json?.public_url) {
+      throw new Error("Resign lambda returned no public_url");
+    }
+    return json.public_url;
+  }
+
+  // Try to download the audio without triggering a full download when possible.
+  // On 403 (expired/forbidden) we call the resign lambda to obtain a fresh URL.
+  async function handleDownload() {
+    if (!lItemPublicUrl) {
+      setMessage("No audio url available to download.");
+      return;
+    }
+    setMessage(null);
+
+    try {
+      // Try a lightweight HEAD request first to detect 403 without downloading file.
+      let accessible = false;
+      try {
+        const headResp = await fetch(lItemPublicUrl, { method: "HEAD" });
+        if (headResp.ok) accessible = true;
+        else if (headResp.status === 403) accessible = false;
+        else accessible = headResp.ok;
+      } catch (headErr) {
+        // Some endpoints disallow HEAD — attempt a tiny range GET
+        // log the head error for observability
+        // eslint-disable-next-line no-console
+        console.warn(
+          "HEAD request failed or blocked, falling back to range GET",
+          headErr
+        );
+        try {
+          const rangeResp = await fetch(lItemPublicUrl, {
+            method: "GET",
+            headers: { Range: "bytes=0-9" },
+          });
+          if (rangeResp.ok) accessible = true;
+          else if (rangeResp.status === 403) accessible = false;
+          else accessible = rangeResp.ok;
+        } catch (rangeErr) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "Range GET failed while checking audio URL accessibility",
+            rangeErr
+          );
+          accessible = false;
+        }
+      }
+
+      let finalUrl = lItemPublicUrl;
+      if (!accessible) {
+        // Obtain a fresh signed URL from the resign lambda
+        const fresh = await getFreshSignedUrl();
+        finalUrl = fresh;
+        // update local state so audio player uses fresh URL going forward
+        setLItemPublicUrl(fresh);
+      }
+
+      // Trigger browser download (opens new tab/download)
+      const a = document.createElement("a");
+      a.href = finalUrl;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      // leave download attr empty so browser chooses filename from headers
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   // Remove the rl_item from the current user's private list
   async function removeFromPrivateList() {
@@ -669,13 +774,18 @@ export default function RlItemDetail() {
           </Button>
 
           {lItemPublicUrl && (
-            <div className="flex-1">
+            <div className="flex-1 flex items-center gap-3">
               <audio
                 controls
                 preload="none"
                 src={lItemPublicUrl}
                 className="w-full"
               />
+              <div>
+                <Button size="sm" onClick={handleDownload}>
+                  Download
+                </Button>
+              </div>
             </div>
           )}
         </div>

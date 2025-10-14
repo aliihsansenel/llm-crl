@@ -181,11 +181,13 @@ output of this function: new "title" (title column), created reading text "r_ite
 - edge function in RlItemDetail.tsx page used returns this as response so please fill necessary components with this information after "create reding text" receives response from edge function:
 return new Response(JSON.stringify({ok:true,rl_item:{id,title:parsed.title,text:parsed.text,level_id},tokens:{free:freeLeft,paid:paidLeft}})
 - on page load now everything set correctly, but since response of edge function takes for a while I want you to increase timeout to 20 seconds, and I see red color of request in browser even if response is 200 and fields are not completed with edge functions response.
-
-New implementation request(s) for Coder LLM:
 - I have created two functions, one of this publicly available https://5lklgc5015.execute-api.eu-central-1.amazonaws.com/default/create-listening-audio
 consider the new db schema I created a l_items table and connect rl_items table with foreign key relationship, so add a "create listening material" button, button should be active if l_item_id is null, if l_item_id is full of zeros it means audio file being created. if so poll rl_item every 5 seconds.
 - create a audio player component (can be simple, left out advanced improvements for another iteration if complex).
 - once audio file is created it will be ready, and be accesible with url
 - on page load do not automatically download audio file (aws outgoing traffic is subject to prices)
 - do not forget only one l_item can be created for a rl_item. Users need to create another rl_item to create another audio.
+
+New implementation request(s) for Coder LLM:
+- We implemented listening material generation feature using lambda functions, but created links for accessing audio files expires, so I need you to write another lambda function to re sign url again. So check out "create-listening-audio" function as an example. and create another directory and write code there. do not modify existing functions or do not new function try to invoke them, just write new function for dedicated on this purpose. do not try to deploy functions to aws I'll handle it.
+- After completing lambda function change behaviour of RlItemDetail audio download. I want on click download behaviour kept. But since url expires, if you rejected by 403 invoke lambda function you just wrote (you will not have url of lambda function just wrote placholder code I will manually add correct lamnda function url).

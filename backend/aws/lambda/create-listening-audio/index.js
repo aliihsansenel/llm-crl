@@ -29,6 +29,8 @@ exports.handler = async (event) => {
 
   if (allowedOrigins.includes(origin)) {
     corsHeaders["Access-Control-Allow-Origin"] = origin;
+    corsHeaders["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+    corsHeaders["Access-Control-Allow-Methods"] = "POST, OPTIONS";
     corsHeaders["Access-Control-Allow-Credentials"] = true;
   }
 
@@ -37,9 +39,8 @@ exports.handler = async (event) => {
     return {
       statusCode: 204, // No Content
       headers: {
+        ...corsHeaders,
         "Access-Control-Allow-Origin": origin, // Reflecting the origin
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
       },
       body: "",
     };

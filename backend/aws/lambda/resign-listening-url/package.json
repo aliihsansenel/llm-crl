@@ -1,0 +1,17 @@
+{
+  "name": "resign-listening-url",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Ali İhsan Şenel",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.75.0",
+    "aws-sdk": "^2.1692.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
