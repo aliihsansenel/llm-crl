@@ -104,7 +104,9 @@ export default function VocabsPage() {
       const { data: itemsRes, error: itemsErr } = await supabase
         .from("p_vocab_list_items")
         .select("vocab_id")
-        .eq("p_vocab_list_id", listId);
+        .eq("p_vocab_list_id", listId)
+        .order("added_at", { ascending: false });
+      // TODO
 
       if (itemsErr) throw itemsErr;
 

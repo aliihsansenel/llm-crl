@@ -945,6 +945,17 @@
         "numeric_precision": 32,
         "numeric_scale": 0,
         "ordinal_position": 2
+      },
+      {
+        "column_name": "added_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
       }
     ],
     "primary_key": ["p_rl_list_id", "rl_item_id"],
@@ -1049,6 +1060,17 @@
         "numeric_precision": 32,
         "numeric_scale": 0,
         "ordinal_position": 2
+      },
+      {
+        "column_name": "added_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "udt_name": "timestamptz",
+        "character_maximum_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "ordinal_position": 3
       }
     ],
     "primary_key": ["p_vocab_list_id", "vocab_id"],
