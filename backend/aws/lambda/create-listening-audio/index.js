@@ -8,7 +8,7 @@ const {
   SUPABASE_JWT_SECRET,
   LAMBDA_WORKER_NAME,
   AWS_REGION,
-  MIN_TOKENS_REQUIRED = "1",
+  MIN_TOKENS_REQUIRED = "7",
 } = process.env;
 
 // --- CORS Configuration ---

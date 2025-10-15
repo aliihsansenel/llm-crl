@@ -363,15 +363,15 @@ export default function RlItemDetail() {
       const { data, error } = await supabase.functions.invoke(
         "create-reading-text",
         {
+          method: "POST",
           body: {
             id: rlItem.id,
             meanings: meaningIds,
-            instructions,
+            instructions: instructions || null,
             level_id: pageLevelId,
           },
           headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
           },
           signal: controller.signal,
         }

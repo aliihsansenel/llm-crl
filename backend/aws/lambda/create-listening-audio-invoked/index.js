@@ -10,6 +10,7 @@ const {
   OPENAI_KEY,
   S3_BUCKET,
   AWS_REGION,
+  MIN_TOKENS_REQUIRED = "7",
   PRESIGNED_URL_EXPIRES = "3600",
   USE_PUBLIC_ACL = "false",
 } = process.env;
@@ -121,7 +122,7 @@ exports.handler = async (event) => {
     if (tokensFetch.error) throw tokensFetch.error;
 
     let { free = 0, paid = 0 } = tokensFetch.data;
-    const required = 1;
+    const required = parseInt(MIN_TOKENS_REQUIRED, 10);
     const useFromFree = Math.min(free, required);
     const remaining = required - useFromFree;
     free -= useFromFree;
