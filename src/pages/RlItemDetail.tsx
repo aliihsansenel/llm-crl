@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import supabase, {
   getCachedUserId,
@@ -72,6 +72,9 @@ export default function RlItemDetail() {
   const [lItemPublicUrl, setLItemPublicUrl] = useState<string | null>(null);
   const [creatingListening, setCreatingListening] = useState(false);
   const [polling, setPolling] = useState(false);
+  // audio element ref and a simple guard to avoid concurrent resign attempts
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const resigningRef = useRef(false);
 
   // levels and page-level selection (default from user settings)
   const [levels, setLevels] = useState<{ id: number; itself: string }[]>([]);
@@ -343,7 +346,20 @@ export default function RlItemDetail() {
     const meaningIds = selectedMeaningIds();
 
     try {
-      // Use supabase.functions.invoke as requested
+      // obtain current user's jwt so the edge function receives the authenticated token
+      const { data: sessionData, error: sessErr } =
+        await supabase.auth.getSession();
+      if (sessErr) throw sessErr;
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        throw new Error("Not authenticated (no access token)");
+      }
+
+      // create an abort controller to enforce a 20s timeout
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
+
+      // Use supabase.functions.invoke and include Authorization header + signal
       const { data, error } = await supabase.functions.invoke(
         "create-reading-text",
         {
@@ -353,8 +369,15 @@ export default function RlItemDetail() {
             instructions,
             level_id: pageLevelId,
           },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
         }
       );
+
+      clearTimeout(timeoutId);
 
       if (error) {
         throw error;
@@ -386,7 +409,7 @@ export default function RlItemDetail() {
 
       setMessage("Reading material created.");
     } catch (err: unknown) {
-      // supabase.functions.invoke will throw error on abort or network error
+      // handle AbortError specifically (timeout)
       if (err instanceof DOMException && err.name === "AbortError") {
         setMessage("Edge function request timed out after 20 seconds.");
       } else if (err instanceof Error) {
@@ -558,6 +581,36 @@ export default function RlItemDetail() {
       throw new Error("Resign lambda returned no public_url");
     }
     return json.public_url;
+  }
+
+  // When the audio element reports an error (most likely because the signed URL expired),
+  // attempt to obtain a fresh signed URL and resume playback. We avoid running any
+  // network checks on every play to prevent repeated HEAD/range fetches on pause/play.
+  async function handleAudioError() {
+    if (!lItemPublicUrl || !audioRef.current) return;
+    if (resigningRef.current) return;
+    try {
+      resigningRef.current = true;
+      setMessage("Refreshing audio URL...");
+      const fresh = await getFreshSignedUrl();
+      setLItemPublicUrl(fresh);
+
+      if (audioRef.current) {
+        // update src and attempt to play; playback may still be blocked by browser
+        audioRef.current.src = fresh;
+        try {
+          await audioRef.current.play();
+        } catch (playErr) {
+          // eslint-disable-next-line no-console
+          console.warn("play after resign failed", playErr);
+        }
+      }
+      setMessage(null);
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      resigningRef.current = false;
+    }
   }
 
   // Try to download the audio without triggering a full download when possible.
@@ -776,10 +829,12 @@ export default function RlItemDetail() {
           {lItemPublicUrl && (
             <div className="flex-1 flex items-center gap-3">
               <audio
+                ref={audioRef}
                 controls
                 preload="none"
                 src={lItemPublicUrl}
                 className="w-full"
+                onError={handleAudioError}
               />
               <div>
                 <Button size="sm" onClick={handleDownload}>
