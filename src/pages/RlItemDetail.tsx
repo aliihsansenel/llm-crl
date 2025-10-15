@@ -357,7 +357,7 @@ export default function RlItemDetail() {
 
       // create an abort controller to enforce a 20s timeout
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 40_000);
 
       // Use supabase.functions.invoke and include Authorization header + signal
       const { data, error } = await supabase.functions.invoke(
