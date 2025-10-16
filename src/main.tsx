@@ -49,7 +49,7 @@ import {
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
 
-import supabase from "./lib/supabase";
+import supabase, { getCachedUserId } from "./lib/supabase";
 
 import "./index.css";
 
@@ -91,10 +91,9 @@ function RootRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
+      // Use cached helper to avoid duplicate auth/v1/user requests
+      const uid = await getCachedUserId();
+      if (uid) {
         navigate("/vocabs", { replace: true });
       } else {
         // For anonymous users send them to the public discover page
@@ -112,11 +111,10 @@ function RequireAuth({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // Prefer cached user id helper to avoid duplicate auth calls
+      const uid = await getCachedUserId();
       if (!mounted) return;
-      if (!user) {
+      if (!uid) {
         navigate("/login", { replace: true });
       } else {
         setChecking(false);
@@ -180,20 +178,27 @@ function Layout() {
     let mounted = true;
 
     async function fetchInitial() {
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
+      // Use cached helper to avoid duplicate auth/v1/user requests.
+      const uid = await getCachedUserId();
       if (!mounted) return;
-      setUser(currentUser ?? null);
-      if (currentUser?.id) {
-        const { data: tokenRow, error } = await supabase
-          .from("tokens")
-          .select("free,paid")
-          .eq("user_id", currentUser.id)
-          .maybeSingle();
-        if (!error && tokenRow) {
-          setTokens({ free: tokenRow.free, paid: tokenRow.paid });
+      if (uid) {
+        // set minimal user shape to avoid extra getUser calls; detailed user object is available via onAuthStateChange
+        setUser({ id: uid });
+        try {
+          const { data: tokenRow, error } = await supabase
+            .from("tokens")
+            .select("free,paid")
+            .eq("user_id", uid)
+            .maybeSingle();
+          if (!error && tokenRow) {
+            setTokens({ free: tokenRow.free, paid: tokenRow.paid });
+          }
+        } catch {
+          /* ignore */
         }
+      } else {
+        setUser(null);
+        setTokens(null);
       }
     }
 

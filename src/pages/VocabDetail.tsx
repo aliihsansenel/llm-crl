@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import supabase, {
   addVocabToPrivateList,
   removeVocabFromPrivateList,
+  getCachedUserId,
 } from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import {
@@ -88,8 +89,7 @@ export default function VocabDetail() {
 
         // load current user and admin status so we can show/hide controls
         try {
-          const { data: authData } = await supabase.auth.getUser();
-          const uid = authData?.user?.id ?? null;
+          const uid = await getCachedUserId();
           setCurrentUserId(uid);
           if (uid) {
             const { data: adminRes } = await supabase
@@ -151,8 +151,7 @@ export default function VocabDetail() {
       return;
     }
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id ?? null;
+      const uid = await getCachedUserId();
       if (!uid) {
         setMessage("Sign in to create meanings.");
         return;
@@ -193,8 +192,7 @@ export default function VocabDetail() {
   async function deleteMeaning(meaningId: number) {
     setMessage(null);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id ?? null;
+      const uid = await getCachedUserId();
       if (!uid) {
         setMessage("Sign in to delete meanings.");
         return;
@@ -250,8 +248,7 @@ export default function VocabDetail() {
       return;
     }
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id ?? null;
+      const uid = await getCachedUserId();
       if (!uid) {
         setMessage("Sign in to add sentences.");
         return;
@@ -291,8 +288,7 @@ export default function VocabDetail() {
   async function removeSentence(meaningId: number, index: number) {
     setMessage(null);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id ?? null;
+      const uid = await getCachedUserId();
       if (!uid) {
         setMessage("Sign in to remove sentences.");
         return;
@@ -334,10 +330,7 @@ export default function VocabDetail() {
   async function handleRemoveFromPrivate() {
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setMessage("Sign in to remove.");
         return;

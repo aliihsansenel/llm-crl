@@ -255,6 +255,56 @@ export async function getCachedUserId(): Promise<string | null> {
   return getUserPromise;
 }
 
+/**
+ * Cached access-token helper
+ * - avoids calling supabase.auth.getSession repeatedly across components
+ * - serializes concurrent fetches and keeps cache in sync with auth state changes
+ */
+let cachedSessionToken: string | null = null;
+let getSessionTokenPromise: Promise<string | null> | null = null;
+
+supabase.auth.onAuthStateChange((_event, session) => {
+  // Keep cached user id and session token in sync with auth state
+  cachedUserId = session?.user?.id ?? null;
+  // The session parameter shape can vary between SDK versions; handle both possibilities
+  //  - session?.access_token
+  //  - session?.session?.access_token
+  //  - if neither present, clear token
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const s = session as any;
+  cachedSessionToken = s?.access_token ?? s?.session?.access_token ?? null;
+});
+
+/**
+ * Return a cached access token (JWT) if available; otherwise fetch and populate cache.
+ * Serializes concurrent fetches to avoid duplicated network requests.
+ */
+export async function getCachedSessionAccessToken(): Promise<string | null> {
+  if (cachedSessionToken) return cachedSessionToken;
+  if (getSessionTokenPromise) return getSessionTokenPromise;
+
+  getSessionTokenPromise = (async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      // supabase.auth.getSession() may return shape { data: { session: { access_token } } }
+      // or { data: { access_token } } depending on SDK. Handle both.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const token =
+        (data as any)?.session?.access_token ??
+        (data as any)?.access_token ??
+        null;
+      cachedSessionToken = token ?? null;
+      return cachedSessionToken;
+    } catch {
+      return null;
+    } finally {
+      getSessionTokenPromise = null;
+    }
+  })();
+
+  return getSessionTokenPromise;
+}
+
 // Auth helpers
 export async function signUpWithEmail(email: string, password: string) {
   return await supabase.auth.signUp({ email, password });
@@ -374,28 +424,60 @@ export async function addVocabToPrivateList(userId: string, vocabId: number) {
   return { data: res.data };
 }
 
+// Lightweight cache + singleflight for private rl list id lookups (prevents duplicate p_rl_lists queries)
+const cachedPrivateRlListIds = new Map<string, number>();
+const privateRlListPromises = new Map<string, Promise<number | null>>();
+
+export async function getPrivateRlListId(
+  userId: string
+): Promise<number | null> {
+  // fast path
+  if (cachedPrivateRlListIds.has(userId)) {
+    return cachedPrivateRlListIds.get(userId)!;
+  }
+  if (privateRlListPromises.has(userId)) {
+    return privateRlListPromises.get(userId)!;
+  }
+
+  const p = (async () => {
+    try {
+      const { data } = await supabase
+        .from("p_rl_lists")
+        .select("id")
+        .eq("owner_id", userId)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) {
+        cachedPrivateRlListIds.set(userId, data.id);
+        return data.id;
+      }
+      const insertRes = await supabase
+        .from("p_rl_lists")
+        .insert({ owner_id: userId })
+        .select("id")
+        .maybeSingle();
+      if (insertRes.error || !insertRes.data) {
+        return null;
+      }
+      const id = insertRes.data.id;
+      cachedPrivateRlListIds.set(userId, id);
+      return id;
+    } catch {
+      return null;
+    } finally {
+      privateRlListPromises.delete(userId);
+    }
+  })();
+
+  privateRlListPromises.set(userId, p);
+  return p;
+}
+
 // Helper: add rl_item to user's private rl list (creates p_rl_list if missing)
 export async function addRlItemToPrivateList(userId: string, rlItemId: number) {
-  // ensure private rl list exists and get its id
-  const { data } = await supabase
-    .from("p_rl_lists")
-    .select("id")
-    .eq("owner_id", userId)
-    .limit(1)
-    .maybeSingle();
-  let listId: number | undefined = data?.id;
+  const listId = await getPrivateRlListId(userId);
   if (!listId) {
-    const insertRes = await supabase
-      .from("p_rl_lists")
-      .insert({ owner_id: userId })
-      .select("id")
-      .maybeSingle();
-    if (insertRes.error || !insertRes.data) {
-      return {
-        error: insertRes.error || new Error("failed to create private rl list"),
-      };
-    }
-    listId = insertRes.data.id;
+    return { error: new Error("failed to get or create private rl list") };
   }
 
   // insert item into private rl list

@@ -9,6 +9,7 @@ import { Button } from "../components/ui/button";
 import supabase, {
   addVocabToPrivateList,
   addRlItemToPrivateList,
+  getCachedUserId,
 } from "../lib/supabase";
 import { Link } from "react-router-dom";
 
@@ -224,10 +225,7 @@ export default function DiscoverPage() {
   async function handleSaveRlItem(rlItemId: number) {
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setMessage(
           "You must sign in to save reading/listening items to your private list."
@@ -249,10 +247,7 @@ export default function DiscoverPage() {
   async function handleSaveVocab(vocabId: number) {
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setMessage("You must sign in to save vocab to your private list.");
         return;
@@ -273,10 +268,7 @@ export default function DiscoverPage() {
   async function handleSubscribe(listId: number) {
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const userId = await getCachedUserId();
       if (!userId) {
         setMessage("You must sign in to subscribe to lists.");
         return;
@@ -486,10 +478,7 @@ export default function DiscoverPage() {
                         onClick={async () => {
                           setMessage(null);
                           try {
-                            const {
-                              data: { user },
-                            } = await supabase.auth.getUser();
-                            const userId = user?.id;
+                            const userId = await getCachedUserId();
                             if (!userId) {
                               setMessage(
                                 "You must sign in to subscribe to lists."

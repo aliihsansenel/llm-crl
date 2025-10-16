@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import supabase, {
   getCachedUserId,
   ensureUserResources,
+  getCachedSessionAccessToken,
 } from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
@@ -347,10 +348,7 @@ export default function RlItemDetail() {
 
     try {
       // obtain current user's jwt so the edge function receives the authenticated token
-      const { data: sessionData, error: sessErr } =
-        await supabase.auth.getSession();
-      if (sessErr) throw sessErr;
-      const token = sessionData?.session?.access_token;
+      const token = await getCachedSessionAccessToken();
       if (!token) {
         throw new Error("Not authenticated (no access token)");
       }
@@ -429,10 +427,7 @@ export default function RlItemDetail() {
     setCreatingListening(true);
     try {
       // get current session and access token (jwt)
-      const { data: sessionData, error: sessErr } =
-        await supabase.auth.getSession();
-      if (sessErr) throw sessErr;
-      const token = sessionData?.session?.access_token;
+      const token = await getCachedSessionAccessToken();
       if (!token) {
         throw new Error("Not authenticated (no access token)");
       }
@@ -552,12 +547,7 @@ export default function RlItemDetail() {
     }
 
     // obtain current user's jwt
-    const { data: sessionData, error: sessErr } =
-      await supabase.auth.getSession();
-    if (sessErr) {
-      throw sessErr;
-    }
-    const token = sessionData?.session?.access_token;
+    const token = await getCachedSessionAccessToken();
     if (!token) {
       throw new Error("Not authenticated (no access token)");
     }

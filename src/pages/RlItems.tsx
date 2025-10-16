@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import supabase, {
-  ensureUserResources,
   getCachedUserId,
+  getPrivateRlListId,
+  addRlItemToPrivateList,
 } from "../lib/supabase";
 
 type RlItem = {
@@ -14,6 +15,14 @@ type RlItem = {
   delete_requested?: boolean | null;
   l_item_id?: string | null;
 };
+
+// Module-level singleflight caches to dedupe network requests across renders
+const rlItemsPromises: Map<
+  string,
+  Promise<{ data: RlItem[] | null; error: unknown | null }>
+> = new Map();
+
+const privateLoadPromises: Map<string, Promise<void>> = new Map();
 
 export default function RlItemsPage() {
   const PAGE_SIZE = 20;
@@ -38,66 +47,109 @@ export default function RlItemsPage() {
         return;
       }
 
-      await ensureUserResources(userId);
-
-      const { data: pList } = await supabase
-        .from("p_rl_lists")
-        .select("id")
-        .eq("owner_id", userId)
-        .limit(1)
-        .maybeSingle();
-
-      const listId = pList?.id;
-      if (!listId) {
-        setItems([]);
-        setLoading(false);
-        setTotal(0);
+      const key = `${userId}:${page}`;
+      if (privateLoadPromises.has(key)) {
+        await privateLoadPromises.get(key);
         return;
       }
 
-      // paginate p_rl_list_items
-      const start = page * PAGE_SIZE;
-      const end = start + PAGE_SIZE - 1;
-      const {
-        data: itemsRes,
-        error: itemsErr,
-        count,
-      } = await supabase
-        .from("p_rl_list_items")
-        .select("rl_item_id", { count: "exact" })
-        .eq("p_rl_list_id", listId)
-        .order("added_at", { ascending: false })
-        .range(start, end);
+      const p = (async () => {
+        try {
+          const listId = await getPrivateRlListId(userId);
+          if (!listId) {
+            setItems([]);
+            setLoading(false);
+            setTotal(0);
+            return;
+          }
 
-      if (itemsErr) throw itemsErr;
+          const start = page * PAGE_SIZE;
+          const end = start + PAGE_SIZE - 1;
+          const {
+            data: itemsRes,
+            error: itemsErr,
+            count,
+          } = await supabase
+            .from("p_rl_list_items")
+            .select("rl_item_id", { count: "exact" })
+            .eq("p_rl_list_id", listId)
+            .order("added_at", { ascending: false })
+            .range(start, end);
 
-      const ids: number[] = (itemsRes || []).map(
-        (r: { rl_item_id: number }) => r.rl_item_id
-      );
-      if (!ids.length) {
-        setItems([]);
-        setTotal(count ?? 0);
-        setLoading(false);
-        return;
+          if (itemsErr) throw itemsErr;
+
+          const ids: number[] = (itemsRes || []).map(
+            (r: { rl_item_id: number }) => r.rl_item_id
+          );
+          if (!ids.length) {
+            setItems([]);
+            setTotal(count ?? 0);
+            setLoading(false);
+            return;
+          }
+
+          const idsKey = ids
+            .slice()
+            .sort((a, b) => a - b)
+            .join(",");
+          let rlRes = undefined as
+            | { data: RlItem[] | null; error: unknown | null }
+            | undefined;
+          if (rlItemsPromises.has(idsKey)) {
+            rlRes = await rlItemsPromises.get(idsKey);
+          } else {
+            const fetchRl = (async () => {
+              const { data, error } = await supabase
+                .from("rl_items")
+                .select(
+                  "id,title,created_at,owner_id,delete_requested,l_item_id"
+                )
+                .in("id", ids);
+              if (error) throw error;
+              return { data, error: null } as {
+                data: RlItem[] | null;
+                error: unknown | null;
+              };
+            })();
+            rlItemsPromises.set(idsKey, fetchRl);
+            try {
+              rlRes = await fetchRl;
+            } finally {
+              rlItemsPromises.delete(idsKey);
+            }
+          }
+
+          if (!rlRes) {
+            rlRes = { data: [], error: null };
+          }
+
+          const map = new Map<number, RlItem>();
+          (rlRes.data || []).forEach((r) => map.set(r.id, r));
+          const ordered = ids
+            .map((id) => map.get(id))
+            .filter(Boolean) as RlItem[];
+
+          setItems(ordered);
+          setTotal(count ?? ordered.length);
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : String(err));
+          setItems([]);
+          setTotal(0);
+        } finally {
+          setLoading(false);
+        }
+      })();
+
+      privateLoadPromises.set(key, p);
+      try {
+        await p;
+      } finally {
+        privateLoadPromises.delete(key);
       }
-
-      const { data: rlRes, error: rlErr } = await supabase
-        .from("rl_items")
-        .select("id,title,created_at,owner_id,delete_requested,l_item_id")
-        .in("id", ids);
-      if (rlErr) throw rlErr;
-
-      const map = new Map<number, RlItem>();
-      ((rlRes || []) as RlItem[]).forEach((r) => map.set(r.id, r));
-      const ordered = ids.map((id) => map.get(id)).filter(Boolean) as RlItem[];
-
-      setItems(ordered);
-      setTotal(count ?? ordered.length);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setItems([]);
       setTotal(0);
-    } finally {
       setLoading(false);
     }
   }
@@ -113,7 +165,6 @@ export default function RlItemsPage() {
         return;
       }
 
-      // insert rl_item with owner_id
       const insertRes = await supabase
         .from("rl_items")
         .insert({ owner_id: userId })
@@ -127,39 +178,11 @@ export default function RlItemsPage() {
       }
       const rlItemId: number = insertRes.data.id;
 
-      // ensure private rl list exists and add to it
-      const { data: pList } = await supabase
-        .from("p_rl_lists")
-        .select("id")
-        .eq("owner_id", userId)
-        .limit(1)
-        .maybeSingle();
-
-      let listId: number | undefined = pList?.id;
-      if (!listId) {
-        const createRes = await supabase
-          .from("p_rl_lists")
-          .insert({ owner_id: userId })
-          .select("id")
-          .maybeSingle();
-        if (createRes.error || !createRes.data) {
-          setError("Failed to create private list.");
-          setCreating(false);
-          return;
-        }
-        listId = createRes.data.id;
-      }
-
-      // add to private list
-      const addRes = await supabase
-        .from("p_rl_list_items")
-        .insert({ p_rl_list_id: listId, rl_item_id: rlItemId });
+      const addRes = await addRlItemToPrivateList(userId, rlItemId);
       if (addRes.error) {
-        // non-fatal: proceed but inform user via console
         console.warn("failed to add rl_item to private list", addRes.error);
       }
 
-      // navigate to detail page
       navigate(`/rl-items?id=${rlItemId}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -168,7 +191,6 @@ export default function RlItemsPage() {
     }
   }
 
-  // Remove an rl_item from the user's private list and attempt to delete the rl_item itself
   async function handleRemoveFromPrivateAndMaybeDelete(
     itemId: number,
     ownerId?: string | null,
@@ -182,20 +204,12 @@ export default function RlItemsPage() {
         return;
       }
 
-      // find user's private rl list
-      const { data: pList } = await supabase
-        .from("p_rl_lists")
-        .select("id")
-        .eq("owner_id", userId)
-        .limit(1)
-        .maybeSingle();
-      const listId = pList?.id;
+      const listId = await getPrivateRlListId(userId);
       if (!listId) {
         setError("Private list not found.");
         return;
       }
 
-      // remove the item from the private list
       const delRes = await supabase
         .from("p_rl_list_items")
         .delete()
@@ -204,17 +218,14 @@ export default function RlItemsPage() {
         throw delRes.error;
       }
 
-      // optimistically remove from UI
       setItems((prev) => prev.filter((it) => it.id !== itemId));
 
-      // if the current user is the owner and there is no l_item_id, attempt to delete rl_item
       if (ownerId === userId && !lItemId) {
         const del = await supabase
           .from("rl_items")
           .delete()
           .match({ id: itemId });
         if (del.error) {
-          // if deletion rejected, set delete_requested = true
           const upd = await supabase
             .from("rl_items")
             .update({ delete_requested: true })
@@ -296,7 +307,6 @@ export default function RlItemsPage() {
         </ul>
       )}
 
-      {/* Pagination controls */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           Page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
