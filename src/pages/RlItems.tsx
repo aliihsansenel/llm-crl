@@ -16,10 +16,14 @@ type RlItem = {
 };
 
 export default function RlItemsPage() {
+  const PAGE_SIZE = 20;
+
   const [items, setItems] = useState<RlItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const navigate = useNavigate();
 
   async function loadPrivateRlItems() {
@@ -47,13 +51,24 @@ export default function RlItemsPage() {
       if (!listId) {
         setItems([]);
         setLoading(false);
+        setTotal(0);
         return;
       }
 
-      const { data: itemsRes, error: itemsErr } = await supabase
+      // paginate p_rl_list_items
+      const start = page * PAGE_SIZE;
+      const end = start + PAGE_SIZE - 1;
+      const {
+        data: itemsRes,
+        error: itemsErr,
+        count,
+      } = await supabase
         .from("p_rl_list_items")
-        .select("rl_item_id")
-        .eq("p_rl_list_id", listId);
+        .select("rl_item_id", { count: "exact" })
+        .eq("p_rl_list_id", listId)
+        .order("added_at", { ascending: false })
+        .range(start, end);
+
       if (itemsErr) throw itemsErr;
 
       const ids: number[] = (itemsRes || []).map(
@@ -61,6 +76,7 @@ export default function RlItemsPage() {
       );
       if (!ids.length) {
         setItems([]);
+        setTotal(count ?? 0);
         setLoading(false);
         return;
       }
@@ -68,14 +84,19 @@ export default function RlItemsPage() {
       const { data: rlRes, error: rlErr } = await supabase
         .from("rl_items")
         .select("id,title,created_at,owner_id,delete_requested,l_item_id")
-        .in("id", ids)
-        .order("created_at", { ascending: false });
+        .in("id", ids);
       if (rlErr) throw rlErr;
 
-      setItems((rlRes as RlItem[]) || []);
+      const map = new Map<number, RlItem>();
+      ((rlRes || []) as RlItem[]).forEach((r) => map.set(r.id, r));
+      const ordered = ids.map((id) => map.get(id)).filter(Boolean) as RlItem[];
+
+      setItems(ordered);
+      setTotal(count ?? ordered.length);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setItems([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -214,7 +235,7 @@ export default function RlItemsPage() {
   useEffect(() => {
     loadPrivateRlItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page]);
 
   if (loading) return <div className="p-6 text-sm">Loading...</div>;
 
@@ -274,6 +295,36 @@ export default function RlItemsPage() {
           ))}
         </ul>
       )}
+
+      {/* Pagination controls */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            Prev
+          </Button>
+          <Button
+            size="sm"
+            onClick={() =>
+              setPage((p) =>
+                (p + 1) * PAGE_SIZE < total
+                  ? Math.min(p + 1, Math.ceil(total / PAGE_SIZE) - 1)
+                  : p
+              )
+            }
+            disabled={(page + 1) * PAGE_SIZE >= total}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

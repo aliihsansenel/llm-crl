@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Tabs,
   TabsList,
@@ -59,6 +59,8 @@ function errMsg(err: unknown): string {
 }
 
 export default function DiscoverPage() {
+  const PAGE_SIZE = 20;
+
   const [active, setActive] = useState<
     "vocabs" | "vocablists" | "rlitems" | "rllists"
   >("vocabs");
@@ -75,101 +77,149 @@ export default function DiscoverPage() {
   const [expandedVocab, setExpandedVocab] = useState<number | null>(null);
   const [expandedList, setExpandedList] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadVocabs();
-    loadLists();
-    loadRlItems();
-    loadRlLists();
-  }, []);
+  // Pagination state for each tab
+  const [vocabsPage, setVocabsPage] = useState(0);
+  const [vocabsTotal, setVocabsTotal] = useState(0);
+  const [listsPage, setListsPage] = useState(0);
+  const [listsTotal, setListsTotal] = useState(0);
+  const [rlItemsPage, setRlItemsPage] = useState(0);
+  const [rlItemsTotal, setRlItemsTotal] = useState(0);
+  const [rlListsPage, setRlListsPage] = useState(0);
+  const [rlListsTotal, setRlListsTotal] = useState(0);
 
-  async function loadVocabs() {
+  const loadVocabs = useCallback(async () => {
     setLoadingVocabs(true);
     setMessage(null);
     try {
-      const { data: vocabsRes, error } = await supabase
+      const start = vocabsPage * PAGE_SIZE;
+      const end = start + PAGE_SIZE - 1;
+      const {
+        data: vocabsRes,
+        error,
+        count,
+      } = await supabase
         .from("vocabs")
-        .select("id,itself,created_at")
+        .select("id,itself,created_at", { count: "exact" })
         .order("created_at", { ascending: false })
-        .limit(100);
+        .range(start, end);
       if (error) throw error;
       const arr = (vocabsRes || []) as Vocab[];
-      // shuffle for random-like discovery
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      setVocabs(arr.slice(0, 20));
+      // keep ordering deterministic (latest modified/created first)
+      setVocabs(arr);
+      setVocabsTotal(count ?? arr.length);
     } catch (err: unknown) {
       setMessage(errMsg(err));
       setVocabs([]);
+      setVocabsTotal(0);
     } finally {
       setLoadingVocabs(false);
     }
-  }
+  }, [vocabsPage]);
 
-  async function loadLists() {
+  const loadLists = useCallback(async () => {
     setLoadingLists(true);
     setMessage(null);
     try {
-      const { data: listsRes, error } = await supabase
+      const start = listsPage * PAGE_SIZE;
+      const end = start + PAGE_SIZE - 1;
+      const {
+        data: listsRes,
+        error,
+        count,
+      } = await supabase
         .from("vocab_lists")
-        .select("id,name,desc,owner_id,created_at")
+        .select("id,name,desc,owner_id,created_at", { count: "exact" })
+        .order("modified_at", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(50);
+        .range(start, end);
       if (error) throw error;
       setLists(listsRes || []);
+      setListsTotal(count ?? (listsRes || []).length);
     } catch (err: unknown) {
       setMessage(errMsg(err));
       setLists([]);
+      setListsTotal(0);
     } finally {
       setLoadingLists(false);
     }
-  }
+  }, [listsPage]);
 
   // RL helpers for discovery
-  async function loadRlItems() {
+  const loadRlItems = useCallback(async () => {
     setLoadingRlItems(true);
     setMessage(null);
     try {
-      const { data: rlRes, error } = await supabase
+      const start = rlItemsPage * PAGE_SIZE;
+      const end = start + PAGE_SIZE - 1;
+      const {
+        data: rlRes,
+        error,
+        count,
+      } = await supabase
         .from("rl_items")
-        .select("id,title,created_at,owner_id,l_item_id,delete_requested")
+        .select("id,title,created_at,owner_id,l_item_id,delete_requested", {
+          count: "exact",
+        })
+        .order("modified_at", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(100);
+        .range(start, end);
       if (error) throw error;
       const arr = (rlRes || []) as RlItem[];
-      // shuffle for random-like discovery
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      setRlItems(arr.slice(0, 20));
+      setRlItems(arr);
+      setRlItemsTotal(count ?? arr.length);
     } catch (err: unknown) {
       console.warn("loadRlItems error", err);
       setRlItems([]);
+      setRlItemsTotal(0);
     } finally {
       setLoadingRlItems(false);
     }
-  }
+  }, [rlItemsPage]);
 
-  async function loadRlLists() {
+  const loadRlLists = useCallback(async () => {
     setLoadingRlLists(true);
     setMessage(null);
     try {
-      const { data: listsRes, error } = await supabase
+      const start = rlListsPage * PAGE_SIZE;
+      const end = start + PAGE_SIZE - 1;
+      const {
+        data: listsRes,
+        error,
+        count,
+      } = await supabase
         .from("rl_lists")
-        .select("id,name,desc,owner_id,created_at")
+        .select("id,name,desc,owner_id,created_at", { count: "exact" })
+        .order("modified_at", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(50);
+        .range(start, end);
       if (error) throw error;
       setRlLists(listsRes || []);
+      setRlListsTotal(count ?? (listsRes || []).length);
     } catch (err: unknown) {
       console.warn("loadRlLists error", err);
       setRlLists([]);
+      setRlListsTotal(0);
     } finally {
       setLoadingRlLists(false);
     }
-  }
+  }, [rlListsPage]);
+
+  // Effects for loading when callbacks or page state change
+  useEffect(() => {
+    loadVocabs();
+  }, [loadVocabs]);
+
+  useEffect(() => {
+    loadLists();
+  }, [loadLists]);
+
+  useEffect(() => {
+    loadRlItems();
+  }, [loadRlItems]);
+
+  useEffect(() => {
+    loadRlLists();
+  }, [loadRlLists]);
 
   async function handleSaveRlItem(rlItemId: number) {
     setMessage(null);
@@ -475,6 +525,83 @@ export default function DiscoverPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Unified pagination controls for active tab */}
+      <div className="mt-6 flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          {active === "vocabs" &&
+            `Page ${vocabsPage + 1} of ${Math.max(1, Math.ceil(vocabsTotal / PAGE_SIZE))}`}
+          {active === "vocablists" &&
+            `Page ${listsPage + 1} of ${Math.max(1, Math.ceil(listsTotal / PAGE_SIZE))}`}
+          {active === "rlitems" &&
+            `Page ${rlItemsPage + 1} of ${Math.max(1, Math.ceil(rlItemsTotal / PAGE_SIZE))}`}
+          {active === "rllists" &&
+            `Page ${rlListsPage + 1} of ${Math.max(1, Math.ceil(rlListsTotal / PAGE_SIZE))}`}
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (active === "vocabs" && vocabsPage > 0)
+                setVocabsPage((p) => p - 1);
+              if (active === "vocablists" && listsPage > 0)
+                setListsPage((p) => p - 1);
+              if (active === "rlitems" && rlItemsPage > 0)
+                setRlItemsPage((p) => p - 1);
+              if (active === "rllists" && rlListsPage > 0)
+                setRlListsPage((p) => p - 1);
+            }}
+            disabled={
+              (active === "vocabs" && vocabsPage === 0) ||
+              (active === "vocablists" && listsPage === 0) ||
+              (active === "rlitems" && rlItemsPage === 0) ||
+              (active === "rllists" && rlListsPage === 0)
+            }
+          >
+            Prev
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => {
+              if (
+                active === "vocabs" &&
+                (vocabsPage + 1) * PAGE_SIZE < vocabsTotal
+              )
+                setVocabsPage((p) => p + 1);
+              if (
+                active === "vocablists" &&
+                (listsPage + 1) * PAGE_SIZE < listsTotal
+              )
+                setListsPage((p) => p + 1);
+              if (
+                active === "rlitems" &&
+                (rlItemsPage + 1) * PAGE_SIZE < rlItemsTotal
+              )
+                setRlItemsPage((p) => p + 1);
+              if (
+                active === "rllists" &&
+                (rlListsPage + 1) * PAGE_SIZE < rlListsTotal
+              )
+                setRlListsPage((p) => p + 1);
+            }}
+            disabled={
+              (active === "vocabs" &&
+                (vocabsPage + 1) * PAGE_SIZE >= vocabsTotal) ||
+              (active === "vocablists" &&
+                (listsPage + 1) * PAGE_SIZE >= listsTotal) ||
+              (active === "rlitems" &&
+                (rlItemsPage + 1) * PAGE_SIZE >= rlItemsTotal) ||
+              (active === "rllists" &&
+                (rlListsPage + 1) * PAGE_SIZE >= rlListsTotal)
+            }
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

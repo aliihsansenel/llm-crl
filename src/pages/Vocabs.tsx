@@ -15,11 +15,17 @@ type Vocab = {
 };
 
 export default function VocabsPage() {
+  const PAGE_SIZE = 20;
+
   const [vocabItems, setVocabItems] = useState<Vocab[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newVocabText, setNewVocabText] = useState("");
+
+  // pagination
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
 
   async function handleStartAdd() {
     setError(null);
@@ -97,16 +103,23 @@ export default function VocabsPage() {
       if (!listId) {
         setVocabItems([]);
         setLoading(false);
+        setTotal(0);
         return;
       }
 
-      // Get items in private list
-      const { data: itemsRes, error: itemsErr } = await supabase
+      // Paginate items in private list ordered by added_at desc
+      const start = page * PAGE_SIZE;
+      const end = start + PAGE_SIZE - 1;
+      const {
+        data: itemsRes,
+        error: itemsErr,
+        count,
+      } = await supabase
         .from("p_vocab_list_items")
-        .select("vocab_id")
+        .select("vocab_id", { count: "exact" })
         .eq("p_vocab_list_id", listId)
-        .order("added_at", { ascending: false });
-      // TODO
+        .order("added_at", { ascending: false })
+        .range(start, end);
 
       if (itemsErr) throw itemsErr;
 
@@ -115,11 +128,12 @@ export default function VocabsPage() {
       );
       if (!ids.length) {
         setVocabItems([]);
+        setTotal(count ?? 0);
         setLoading(false);
         return;
       }
 
-      // Fetch vocabs
+      // Fetch vocabs for the current page and preserve order by ids
       const { data: vocabsRes, error: vocabsErr } = await supabase
         .from("vocabs")
         .select("id,itself")
@@ -127,11 +141,19 @@ export default function VocabsPage() {
 
       if (vocabsErr) throw vocabsErr;
 
-      setVocabItems((vocabsRes as Vocab[]) || []);
+      const vocMap = new Map<number, Vocab>();
+      ((vocabsRes || []) as Vocab[]).forEach((v) => vocMap.set(v.id, v));
+      const ordered = ids
+        .map((id) => vocMap.get(id))
+        .filter(Boolean) as Vocab[];
+
+      setVocabItems(ordered || []);
+      setTotal(count ?? ordered.length);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       setVocabItems([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -140,7 +162,7 @@ export default function VocabsPage() {
   useEffect(() => {
     loadPrivateVocabs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page]);
 
   async function handleRemove(vocabId: number) {
     // Two-choice confirmation: OK => remove all occurrences, Cancel => remove from this list only
@@ -235,6 +257,36 @@ export default function VocabsPage() {
           ))}
         </ul>
       )}
+
+      {/* Pagination controls */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            Prev
+          </Button>
+          <Button
+            size="sm"
+            onClick={() =>
+              setPage((p) =>
+                (p + 1) * PAGE_SIZE < total
+                  ? Math.min(p + 1, Math.ceil(total / PAGE_SIZE) - 1)
+                  : p
+              )
+            }
+            disabled={(page + 1) * PAGE_SIZE >= total}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
