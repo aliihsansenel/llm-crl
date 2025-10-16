@@ -490,11 +490,15 @@ export default function ListDetail() {
                   className={`rounded-md border p-3 ${idx >= 10 ? "opacity-60" : ""}`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="font-medium">{v.itself}</div>
+                    <div>
+                      <Link
+                        to={`/vocabs?id=${v.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {v.itself}
+                      </Link>
+                    </div>
                     <div className="flex gap-2">
-                      <Button size="sm" asChild>
-                        <Link to={`/vocabs?id=${v.id}`}>Open</Link>
-                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -534,7 +538,14 @@ export default function ListDetail() {
                     key={v.id}
                     className={`rounded-md border p-3 flex items-center justify-between ${already ? "opacity-30" : ""}`}
                   >
-                    <div className="text-sm">{v.itself}</div>
+                    <div className="text-sm">
+                      <Link
+                        to={`/vocabs?id=${v.id}`}
+                        className={`hover:underline ${already ? "pointer-events-none" : ""}`}
+                      >
+                        {v.itself}
+                      </Link>
+                    </div>
                     <div>
                       {!already ? (
                         <Button

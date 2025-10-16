@@ -5,6 +5,7 @@ import supabase, {
   ensureUserResources,
 } from "../lib/supabase";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 
 type RlItem = {
@@ -51,6 +52,13 @@ export default function RlListDetail() {
   const [addedFromPrivateIds, setAddedFromPrivateIds] = useState<number[]>([]);
   // whether the current list is a private p_rl_lists
   const [isPrivateList, setIsPrivateList] = useState(false);
+
+  // ownership + edit states (new: mirror ListDetail behavior)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [descInput, setDescInput] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -131,6 +139,7 @@ export default function RlListDetail() {
         setItems(loaded);
 
         const userId = await getCachedUserId();
+        setCurrentUserId(userId ?? null);
 
         if (userId) {
           // load viewer's private rl items so user can add them to this list
@@ -314,6 +323,32 @@ export default function RlListDetail() {
     }
   }
 
+  // Save edits for public rl_lists
+  async function saveEdits() {
+    if (!list) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const { error } = await supabase
+        .from("rl_lists")
+        .update({ name: nameInput, desc: descInput })
+        .match({ id: list.id });
+      if (error) {
+        setMessage(error.message || "Failed to update list");
+      } else {
+        setList((prev) =>
+          prev ? { ...prev, name: nameInput, desc: descInput } : prev
+        );
+        setMessage("List updated.");
+        setEditing(false);
+      }
+    } catch (err: unknown) {
+      setMessage(errToMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) return <div className="p-6 text-sm">Loading...</div>;
   if (!list)
     return (
@@ -322,13 +357,82 @@ export default function RlListDetail() {
       </div>
     );
 
+  const ownerIsCurrent = currentUserId && list.owner_id === currentUserId;
+
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold mb-2">{list.name}</h1>
-      <div className="text-xs text-muted-foreground mb-2">
-        Created: {list.created_at ?? "unknown"}
-      </div>
-      <div className="mb-4 text-sm text-muted-foreground">{list.desc}</div>
+      {editing ? (
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="text-sm block mb-1">List name</label>
+            <Input
+              value={nameInput}
+              onChange={(e) =>
+                setNameInput((e.target as HTMLInputElement).value)
+              }
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm block mb-1">Description</label>
+            <Input
+              value={descInput ?? ""}
+              onChange={(e) =>
+                setDescInput((e.target as HTMLInputElement).value)
+              }
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" onClick={saveEdits} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditing(false);
+                setNameInput(list?.name ?? "");
+                setDescInput(list?.desc ?? "");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold mb-2">{list.name}</h1>
+              <div className="text-xs text-muted-foreground mb-2">
+                Created: {list.created_at ?? "unknown"}
+              </div>
+              <div className="mb-4 text-sm text-muted-foreground">
+                {list.desc}
+              </div>
+            </div>
+
+            {currentUserId && list.owner_id === currentUserId && (
+              <div className="mt-1">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setNameInput(list?.name ?? "");
+                    setDescInput(list?.desc ?? "");
+                    setEditing(true);
+                  }}
+                >
+                  Edit
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="flex gap-2 mb-4">
         {subscribed ? (
@@ -368,16 +472,18 @@ export default function RlListDetail() {
                 >
                   <div className="flex flex-col">
                     <div className="font-medium">
-                      {v.title ?? "Unnamed Content"}
+                      <Link
+                        to={`/rl-items?id=${v.id}`}
+                        className="hover:underline"
+                      >
+                        {v.title ?? "Unnamed Content"}
+                      </Link>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {v.created_at ?? ""}
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" asChild>
-                      <Link to={`/rl-items?id=${v.id}`}>Open</Link>
-                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -416,7 +522,12 @@ export default function RlListDetail() {
                     className={`rounded-md border p-3 flex items-center justify-between ${already ? "opacity-30" : ""}`}
                   >
                     <div className="text-sm">
-                      {v.title ?? "Unnamed Content"}
+                      <Link
+                        to={`/rl-items?id=${v.id}`}
+                        className={`hover:underline ${already ? "pointer-events-none" : ""}`}
+                      >
+                        {v.title ?? "Unnamed Content"}
+                      </Link>
                     </div>
                     <div>
                       {!already ? (
