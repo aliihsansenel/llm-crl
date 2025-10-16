@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import supabase, {
-  ensureUserResources,
+  getPrivateVocabListId,
   removeVocabFromPrivateList,
   createVocabAndAddToPrivateList,
   getCachedUserId,
@@ -13,6 +13,9 @@ type Vocab = {
   id: number;
   itself: string;
 };
+
+// singleflight map to avoid duplicate loadPrivateVocabs calls for same user+page
+const loadPrivateVocabsPromises = new Map<string, Promise<void>>();
 
 export default function VocabsPage() {
   const PAGE_SIZE = 20;
@@ -77,85 +80,90 @@ export default function VocabsPage() {
   }
 
   async function loadPrivateVocabs() {
-    setLoading(true);
     setError(null);
-    try {
-      const userId = await getCachedUserId();
-      if (!userId) {
-        setError("You must be signed in to view your vocabulary.");
-        setVocabItems([]);
-        setLoading(false);
-        return;
-      }
-
-      // Ensure resources exist (profile / settings / private list)
-      await ensureUserResources(userId);
-
-      // Get private list id
-      const { data: pList } = await supabase
-        .from("p_vocab_lists")
-        .select("id")
-        .eq("owner_id", userId)
-        .limit(1)
-        .maybeSingle();
-
-      const listId = pList?.id;
-      if (!listId) {
-        setVocabItems([]);
-        setLoading(false);
-        setTotal(0);
-        return;
-      }
-
-      // Paginate items in private list ordered by added_at desc
-      const start = page * PAGE_SIZE;
-      const end = start + PAGE_SIZE - 1;
-      const {
-        data: itemsRes,
-        error: itemsErr,
-        count,
-      } = await supabase
-        .from("p_vocab_list_items")
-        .select("vocab_id", { count: "exact" })
-        .eq("p_vocab_list_id", listId)
-        .order("added_at", { ascending: false })
-        .range(start, end);
-
-      if (itemsErr) throw itemsErr;
-
-      const ids: number[] = (itemsRes || []).map(
-        (r: { vocab_id: number }) => r.vocab_id
-      );
-      if (!ids.length) {
-        setVocabItems([]);
-        setTotal(count ?? 0);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch vocabs for the current page and preserve order by ids
-      const { data: vocabsRes, error: vocabsErr } = await supabase
-        .from("vocabs")
-        .select("id,itself")
-        .in("id", ids);
-
-      if (vocabsErr) throw vocabsErr;
-
-      const vocMap = new Map<number, Vocab>();
-      ((vocabsRes || []) as Vocab[]).forEach((v) => vocMap.set(v.id, v));
-      const ordered = ids
-        .map((id) => vocMap.get(id))
-        .filter(Boolean) as Vocab[];
-
-      setVocabItems(ordered || []);
-      setTotal(count ?? ordered.length);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+    // get user id first (do not set loading here yet — we want to avoid toggling loading multiple times if a duplicate call is deduped)
+    const userId = await getCachedUserId();
+    if (!userId) {
+      setError("You must be signed in to view your vocabulary.");
       setVocabItems([]);
       setTotal(0);
+      return;
+    }
+
+    const key = `${userId}:${page}`;
+    if (loadPrivateVocabsPromises.has(key)) {
+      // reuse in-flight promise to avoid duplicate network calls
+      await loadPrivateVocabsPromises.get(key);
+      return;
+    }
+
+    const p = (async () => {
+      setLoading(true);
+      try {
+        // Resolve private list id (cached singleflight to avoid duplicate queries)
+        const listId = await getPrivateVocabListId(userId);
+        if (!listId) {
+          setVocabItems([]);
+          setTotal(0);
+          return;
+        }
+
+        // Paginate items in private list ordered by added_at desc
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        const {
+          data: itemsRes,
+          error: itemsErr,
+          count,
+        } = await supabase
+          .from("p_vocab_list_items")
+          .select("vocab_id", { count: "exact" })
+          .eq("p_vocab_list_id", listId)
+          .order("added_at", { ascending: false })
+          .range(start, end);
+
+        if (itemsErr) throw itemsErr;
+
+        const ids: number[] = (itemsRes || []).map(
+          (r: { vocab_id: number }) => r.vocab_id
+        );
+        if (!ids.length) {
+          setVocabItems([]);
+          setTotal(count ?? 0);
+          return;
+        }
+
+        // Fetch vocabs for the current page and preserve order by ids
+        const { data: vocabsRes, error: vocabsErr } = await supabase
+          .from("vocabs")
+          .select("id,itself")
+          .in("id", ids);
+
+        if (vocabsErr) throw vocabsErr;
+
+        const vocMap = new Map<number, Vocab>();
+        ((vocabsRes || []) as Vocab[]).forEach((v) => vocMap.set(v.id, v));
+        const ordered = ids
+          .map((id) => vocMap.get(id))
+          .filter(Boolean) as Vocab[];
+
+        setVocabItems(ordered || []);
+        setTotal(count ?? ordered.length);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        setVocabItems([]);
+        setTotal(0);
+      } finally {
+        setLoading(false);
+      }
+    })();
+
+    loadPrivateVocabsPromises.set(key, p);
+    try {
+      await p;
     } finally {
-      setLoading(false);
+      loadPrivateVocabsPromises.delete(key);
     }
   }
 

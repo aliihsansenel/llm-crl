@@ -278,7 +278,56 @@ export function onAuthStateChange(
   return supabase.auth.onAuthStateChange(cb);
 }
 
-// Ensure user has profile, settings and a private vocab list (create on-demand then re-fetch)
+// Lightweight cache + singleflight for private list id lookups (prevents duplicate p_vocab_lists queries)
+const cachedPrivateVocabListIds = new Map<string, number>();
+const privateListPromises = new Map<string, Promise<number | null>>();
+
+export async function getPrivateVocabListId(
+  userId: string
+): Promise<number | null> {
+  // fast path
+  if (cachedPrivateVocabListIds.has(userId)) {
+    return cachedPrivateVocabListIds.get(userId)!;
+  }
+  if (privateListPromises.has(userId)) {
+    return privateListPromises.get(userId)!;
+  }
+
+  const p = (async () => {
+    try {
+      const { data } = await supabase
+        .from("p_vocab_lists")
+        .select("id")
+        .eq("owner_id", userId)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) {
+        cachedPrivateVocabListIds.set(userId, data.id);
+        return data.id;
+      }
+      const insertRes = await supabase
+        .from("p_vocab_lists")
+        .insert({ owner_id: userId })
+        .select("id")
+        .maybeSingle();
+      if (insertRes.error || !insertRes.data) {
+        return null;
+      }
+      const id = insertRes.data.id;
+      cachedPrivateVocabListIds.set(userId, id);
+      return id;
+    } catch {
+      return null;
+    } finally {
+      privateListPromises.delete(userId);
+    }
+  })();
+
+  privateListPromises.set(userId, p);
+  return p;
+}
+
+// Ensure user has profile and settings (keep lightweight; private list creation handled via getPrivateVocabListId to avoid duplicate queries)
 export async function ensureUserResources(userId: string) {
   const errors: Array<{ table: string; error: unknown }> = [];
 
@@ -302,53 +351,14 @@ export async function ensureUserResources(userId: string) {
     errors.push({ table: "settings", error: err });
   }
 
-  // private vocab list: ensure exactly one per user (create if missing)
-  try {
-    const { data } = await supabase
-      .from("p_vocab_lists")
-      .select("id")
-      .eq("owner_id", userId)
-      .limit(1)
-      .maybeSingle();
-    if (!data) {
-      const insertRes = await supabase
-        .from("p_vocab_lists")
-        .insert({ owner_id: userId })
-        .select("id")
-        .maybeSingle();
-      if (insertRes.error) {
-        errors.push({ table: "p_vocab_lists", error: insertRes.error });
-      }
-    }
-  } catch (err) {
-    errors.push({ table: "p_vocab_lists", error: err });
-  }
-
   return { ok: errors.length === 0, errors };
 }
 
 // Helper: add vocab to user's private list (creates p_vocab_list if missing)
 export async function addVocabToPrivateList(userId: string, vocabId: number) {
-  // ensure private list exists and get its id
-  const { data } = await supabase
-    .from("p_vocab_lists")
-    .select("id")
-    .eq("owner_id", userId)
-    .limit(1)
-    .maybeSingle();
-  let listId: number | undefined = data?.id;
+  const listId = await getPrivateVocabListId(userId);
   if (!listId) {
-    const insertRes = await supabase
-      .from("p_vocab_lists")
-      .insert({ owner_id: userId })
-      .select("id")
-      .maybeSingle();
-    if (insertRes.error || !insertRes.data) {
-      return {
-        error: insertRes.error || new Error("failed to create private list"),
-      };
-    }
-    listId = insertRes.data.id;
+    return { error: new Error("failed to get or create private list") };
   }
 
   // insert item (ignore conflict)
@@ -359,7 +369,6 @@ export async function addVocabToPrivateList(userId: string, vocabId: number) {
     .maybeSingle();
 
   if (res.error) {
-    // If already exists supabase may return error depending on RLS/constraints; return error for now
     return { error: res.error };
   }
   return { data: res.data };
@@ -433,14 +442,7 @@ export async function removeVocabFromPrivateList(
   vocabId: number,
   removeAllOccurrences = false
 ) {
-  // get private list id
-  const { data } = await supabase
-    .from("p_vocab_lists")
-    .select("id")
-    .eq("owner_id", userId)
-    .limit(1)
-    .maybeSingle();
-  const listId = data?.id;
+  const listId = await getPrivateVocabListId(userId);
   if (!listId) {
     return { error: new Error("private list not found") };
   }
