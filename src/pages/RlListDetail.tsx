@@ -357,7 +357,7 @@ export default function RlListDetail() {
       </div>
     );
 
-  const ownerIsCurrent = currentUserId && list.owner_id === currentUserId;
+  // const ownerIsCurrent = currentUserId && list.owner_id === currentUserId;
 
   return (
     <div className="p-6 max-w-3xl">

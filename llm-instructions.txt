@@ -197,6 +197,8 @@ consider the new db schema I created a l_items table and connect rl_items table 
 - I want you to fix redundant supabase get queries, lets fix them step by step, in /rl-items page (personal materials) on page load I see 4 sequential exact same request for auth/v1/user, 2 sequential exact same requests to p_rl_lists and 2 sequential exact same requests to p_rl_list_items. fix these problem please. There must be a problem with managing states in react component right?
 - In RlListDetail page place an edit functionaly same as in ListDetail page.
 - And in RlListDetail listed items have open button, remove open button then turn their names into link that goes to detailed page same as in ListDetail page.
+- in /vocabs page if user add a vocab already exist it gives 409 conflict error, that is okay, but if 409 error happens I want you to fetch that vocabulary by vocab text, then add p_vocab_list_items of that user.
 
 New implementation request(s) for Coder LLM:
-- in /vocabs page if user add a vocab already exist it gives 409 conflict error, that is okay, but if 409 error happens I want you to fetch that vocabulary by vocab text, then add p_vocab_list_items of that user.
+- I want you to improve RlItemDetail page, 1. "create reading material" functionality has 152 seconds (152_000) timeout when user sends request by that button so after timeout re-fetch current rl_item and fill required fields in page.
+- 

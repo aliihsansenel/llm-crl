@@ -72,7 +72,6 @@ export default function RlItemDetail() {
   // listening/audio states
   const [lItemPublicUrl, setLItemPublicUrl] = useState<string | null>(null);
   const [creatingListening, setCreatingListening] = useState(false);
-  const [polling, setPolling] = useState(false);
   // audio element ref and a simple guard to avoid concurrent resign attempts
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const resigningRef = useRef(false);
@@ -353,9 +352,10 @@ export default function RlItemDetail() {
         throw new Error("Not authenticated (no access token)");
       }
 
-      // create an abort controller to enforce a 20s timeout
+      // create an abort controller to enforce the configured timeout (152s per current requirements)
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 40_000);
+      const TIMEOUT_MS = 152_000;
+      const timeoutId = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
       // Use supabase.functions.invoke and include Authorization header + signal
       const { data, error } = await supabase.functions.invoke(
@@ -396,6 +396,10 @@ export default function RlItemDetail() {
               title: returned.title ?? prev.title,
               r_item: returned.text ?? prev.r_item,
               level_id: returned.level_id ?? prev.level_id,
+              // if edge provided l_item_id include it
+              l_item_id: (returned.l_item_id ?? prev.l_item_id) as
+                | string
+                | null,
             }
           : prev
       );
@@ -405,11 +409,41 @@ export default function RlItemDetail() {
         setPageLevelId(returned.level_id);
       }
 
+      // update instructions if edge returned them
+      if (returned.instructions) {
+        setInstructions(returned.instructions);
+      }
+
       setMessage("Reading material created.");
     } catch (err: unknown) {
       // handle AbortError specifically (timeout)
       if (err instanceof DOMException && err.name === "AbortError") {
-        setMessage("Edge function request timed out after 20 seconds.");
+        setMessage(
+          `Edge function request timed out after ${152_000 / 1000} seconds. Attempting to refresh rl_item...`
+        );
+
+        // After timeout: re-fetch the rl_item row and populate page fields so UI reflects latest server state
+        try {
+          const { data: refreshed, error: refErr } = await supabase
+            .from("rl_items")
+            .select(
+              "id,title,r_item,l_item_id,owner_id,delete_requested,instructions,level_id"
+            )
+            .eq("id", rlItem.id)
+            .maybeSingle();
+
+          if (!refErr && refreshed) {
+            setRlItem(refreshed);
+            if (refreshed.instructions) setInstructions(refreshed.instructions);
+            if (refreshed.level_id != null) setPageLevelId(refreshed.level_id);
+          } else if (refErr) {
+            // eslint-disable-next-line no-console
+            console.warn("failed to refetch rl_item after timeout", refErr);
+          }
+        } catch (refetchErr) {
+          // eslint-disable-next-line no-console
+          console.warn("refetch after timeout failed", refetchErr);
+        }
       } else if (err instanceof Error) {
         setMessage(err.message);
       } else {
@@ -452,7 +486,6 @@ export default function RlItemDetail() {
       // mark as in-progress locally (ZERO_UUID sentinel)
       setRlItem((prev) => (prev ? { ...prev, l_item_id: ZERO_UUID } : prev));
       setMessage("Audio creation started. Polling for completion...");
-      setPolling(true);
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : String(err));
     } finally {
@@ -460,10 +493,15 @@ export default function RlItemDetail() {
     }
   }
 
-  // Polling effect: when rlItem.l_item_id === ZERO_UUID, poll rl_items every 5s until it changes.
+  // Polling effect: when rlItem.l_item_id === ZERO_UUID, poll rl_items dynamically.
+  // After every 10 polling iterations double the interval until reaching 2 minutes (120_000ms).
+  // When 2 minutes is reached stop polling.
   useEffect(() => {
-    let iv: number | undefined;
+    let timer: number | undefined;
     let mounted = true;
+    let pollCount = 0;
+    let currentInterval = 5000; // start at 5s
+    const MAX_INTERVAL = 120_000; // 2 minutes cap
 
     async function fetchPublicUrlForUid(uid: string | null) {
       if (!uid) return;
@@ -484,60 +522,75 @@ export default function RlItemDetail() {
       }
     }
 
-    if (!rlItem)
+    async function pollOnce() {
+      if (!mounted || !rlItem) return;
+      try {
+        const { data, error } = await supabase
+          .from("rl_items")
+          .select("l_item_id")
+          .eq("id", rlItem.id)
+          .maybeSingle();
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.warn("poll error", error);
+          scheduleNext();
+          return;
+        }
+        const latest = data?.l_item_id;
+        if (latest && latest !== ZERO_UUID) {
+          // update rlItem and stop polling
+          setRlItem((prev) => (prev ? { ...prev, l_item_id: latest } : prev));
+          // fetch the public url for the created listening item
+          await fetchPublicUrlForUid(latest);
+          return; // stop further polling
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("poll iteration error", e);
+      }
+
+      pollCount++;
+      // After every 5 polls double the interval, cap at MAX_INTERVAL
+      if (pollCount % 5 === 0) {
+        currentInterval = Math.min(currentInterval * 2, MAX_INTERVAL);
+        // If we've reached max interval, stop polling per requirement
+        if (currentInterval >= MAX_INTERVAL) {
+          return;
+        }
+      }
+      scheduleNext();
+    }
+
+    function scheduleNext() {
+      if (!mounted) return;
+      timer = window.setTimeout(pollOnce, currentInterval);
+    }
+
+    if (!rlItem) {
       return () => {
         mounted = false;
+        if (timer) window.clearTimeout(timer);
       };
+    }
 
     if (rlItem.l_item_id === ZERO_UUID) {
-      // start polling if not already
-      if (!iv) {
-        iv = window.setInterval(async () => {
-          try {
-            const { data, error } = await supabase
-              .from("rl_items")
-              .select("l_item_id")
-              .eq("id", rlItem.id)
-              .maybeSingle();
-            if (error) {
-              // eslint-disable-next-line no-console
-              console.warn("poll error", error);
-              return;
-            }
-            const latest = data?.l_item_id;
-            if (latest && latest !== ZERO_UUID) {
-              // update rlItem and stop polling
-              setRlItem((prev) =>
-                prev ? { ...prev, l_item_id: latest } : prev
-              );
-              setPolling(false);
-              if (iv) {
-                window.clearInterval(iv);
-                iv = undefined;
-              }
-              // fetch the public url for the created listening item
-              await fetchPublicUrlForUid(latest);
-            }
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn("poll iteration error", e);
-          }
-        }, 5000);
-      }
+      // initialize polling state and start
+      pollCount = 0;
+      currentInterval = 5000;
+      scheduleNext();
     } else if (rlItem.l_item_id != null) {
       // l_item_id is a real uid (not ZERO_UUID); fetch public url once
       fetchPublicUrlForUid(rlItem.l_item_id);
     } else {
       // no l_item_id -> clear public url
       setLItemPublicUrl(null);
-      setPolling(false);
     }
 
     return () => {
       mounted = false;
-      if (iv) window.clearInterval(iv);
+      if (timer) window.clearTimeout(timer);
     };
-  }, [rlItem?.l_item_id, rlItem?.id, polling]);
+  }, [rlItem?.l_item_id, rlItem?.id]);
 
   // Attempt to get a fresh presigned URL by calling the resign lambda.
   // NOTE: Replace RESIGN_LAMBDA_URL with the actual deployed lambda URL.
