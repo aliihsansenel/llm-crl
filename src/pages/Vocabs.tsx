@@ -63,7 +63,7 @@ export default function VocabsPage() {
         // success: update local state without a full re-fetch
         const vocabId = res.data?.vocabId;
         if (vocabId) {
-          setVocabItems((prev) => [...prev, { id: vocabId, itself: text }]);
+          setVocabItems((prev) => [{ id: vocabId, itself: text }, ...prev]);
         } else {
           // fallback: if no id returned, attempt to minimally reload private vocabs
           await loadPrivateVocabs();
@@ -221,6 +221,7 @@ export default function VocabsPage() {
       {adding && (
         <div className="mb-4 flex items-center gap-2">
           <Input
+            autoFocus
             className="flex-1"
             value={newVocabText}
             onChange={(e) =>

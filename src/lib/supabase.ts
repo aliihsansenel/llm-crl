@@ -498,24 +498,59 @@ export async function createVocabAndAddToPrivateList(
   userId: string,
   itself: string
 ) {
-  // create vocab with owner set to user
+  // attempt to create vocab with owner set to user
   const insertRes = await supabase
     .from("vocabs")
     .insert({ itself, owner_id: userId })
     .select("id")
     .maybeSingle();
-  if (insertRes.error || !insertRes.data) {
-    return { error: insertRes.error || new Error("failed to create vocab") };
-  }
-  const vocabId = insertRes.data.id;
 
-  // add created vocab to private list
-  const addRes = await addVocabToPrivateList(userId, vocabId);
-  if (addRes.error) {
-    // non-fatal in UX, but return error info so caller can decide how to inform user
-    return { error: addRes.error, vocabId };
+  // If insert succeeded, proceed to add to private list
+  if (!insertRes.error && insertRes.data) {
+    const vocabId = insertRes.data.id;
+    const addRes = await addVocabToPrivateList(userId, vocabId);
+    if (addRes.error) {
+      // non-fatal in UX, but return error info so caller can decide how to inform user
+      return { error: addRes.error, vocabId };
+    }
+    return { data: { vocabId, added: addRes.data } };
   }
-  return { data: { vocabId, added: addRes.data } };
+
+  // If insert failed, check if it's a conflict (duplicate) and attempt to find existing vocab by text
+  const err = insertRes.error as any;
+  const isConflict =
+    err &&
+    (err.code === "23505" ||
+      err.status === 409 ||
+      /duplicate/i.test(String(err.message || "")));
+
+  if (isConflict) {
+    try {
+      const { data: existing, error: findErr } = await supabase
+        .from("vocabs")
+        .select("id")
+        .eq("itself", itself)
+        .limit(1)
+        .maybeSingle();
+
+      if (findErr || !existing) {
+        // fallback to returning original insert error if lookup fails
+        return { error: insertRes.error || findErr };
+      }
+
+      const vocabId = existing.id;
+      const addRes = await addVocabToPrivateList(userId, vocabId);
+      if (addRes.error) {
+        return { error: addRes.error, vocabId };
+      }
+      return { data: { vocabId, added: addRes.data } };
+    } catch (lookupErr) {
+      return { error: lookupErr };
+    }
+  }
+
+  // For other errors, return the insert error
+  return { error: insertRes.error || new Error("failed to create vocab") };
 }
 
 // Helper: remove vocab from private list or delete all occurrences + attempt to delete vocab and owned meanings per business rules
