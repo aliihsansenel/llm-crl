@@ -45,6 +45,14 @@ export default function VocabDetail() {
   const [newMeaningText, setNewMeaningText] = useState("");
   const [newMeaningSentences, setNewMeaningSentences] = useState("");
 
+  // rl_items that reference this vocab via rl_item_vocabs_and_meanings
+  const [rlItemsUsingVocab, setRlItemsUsingVocab] = useState<
+    { id: number; title?: string | null; owner_id?: string | null }[]
+  >([]);
+
+  // whether current user already has this vocab in their private list
+  const [isInPrivateList, setIsInPrivateList] = useState<boolean>(false);
+
   // helper to normalize unknown errors to string message
   function errToMessage(err: unknown) {
     return err instanceof Error ? err.message : String(err);
@@ -87,6 +95,61 @@ export default function VocabDetail() {
         if (!mounted) return;
         setMeanings((mRes || []) as Meaning[]);
 
+        // fetch rl_items that reference this vocab via rl_item_vocabs_and_meanings
+        try {
+          const { data: rlRes, error: rlErr } = await supabase
+            .from("rl_item_vocabs_and_meanings")
+            .select("rl_item_id,rl_items(id,title,owner_id)")
+            .eq("vocab_id", id)
+            .limit(50);
+          if (!rlErr && Array.isArray(rlRes)) {
+            const mapped = (rlRes as unknown[])
+              .map((p: unknown) => {
+                const obj = p as Record<string, unknown>;
+                // nested rl_items may be array or object depending on response
+                let rlObj: Record<string, unknown> | undefined;
+                const nested = obj["rl_items"];
+                if (Array.isArray(nested)) {
+                  rlObj = (nested as unknown[])[0] as
+                    | Record<string, unknown>
+                    | undefined;
+                } else if (nested && typeof nested === "object") {
+                  rlObj = nested as Record<string, unknown>;
+                }
+                const rlId =
+                  typeof obj["rl_item_id"] === "number"
+                    ? (obj["rl_item_id"] as number)
+                    : Number(obj["rl_item_id"]);
+                if (!rlObj) return null;
+                return {
+                  id: rlId,
+                  title:
+                    typeof rlObj["title"] === "string"
+                      ? (rlObj["title"] as string)
+                      : null,
+                  owner_id:
+                    typeof rlObj["owner_id"] === "string"
+                      ? (rlObj["owner_id"] as string)
+                      : null,
+                } as {
+                  id: number;
+                  title?: string | null;
+                  owner_id?: string | null;
+                };
+              })
+              .filter(Boolean) as {
+              id: number;
+              title?: string | null;
+              owner_id?: string | null;
+            }[];
+            setRlItemsUsingVocab(mapped);
+          }
+        } catch (e) {
+          // non-fatal - log and continue
+          // eslint-disable-next-line no-console
+          console.warn("failed to load rl_items using vocab", e);
+        }
+
         // load current user and admin status so we can show/hide controls
         try {
           const uid = await getCachedUserId();
@@ -98,13 +161,40 @@ export default function VocabDetail() {
               .eq("user_id", uid)
               .maybeSingle();
             setIsAdmin(!!adminRes);
+
+            // check if this vocab is already present in user's private list
+            try {
+              const { data: pList } = await supabase
+                .from("p_vocab_lists")
+                .select("id")
+                .eq("owner_id", uid)
+                .limit(1)
+                .maybeSingle();
+              const listId = pList?.id;
+              if (listId) {
+                const { data: item } = await supabase
+                  .from("p_vocab_list_items")
+                  .select("vocab_id")
+                  .eq("p_vocab_list_id", listId)
+                  .eq("vocab_id", id)
+                  .maybeSingle();
+                setIsInPrivateList(!!item);
+              } else {
+                setIsInPrivateList(false);
+              }
+            } catch {
+              // if membership check fails, assume not present (non-fatal)
+              setIsInPrivateList(false);
+            }
           } else {
             setIsAdmin(false);
+            setIsInPrivateList(false);
           }
         } catch {
           // ignore auth/admin check failures
           setCurrentUserId(null);
           setIsAdmin(false);
+          setIsInPrivateList(false);
         }
       } catch (err: unknown) {
         const message = errToMessage(err);
@@ -121,6 +211,7 @@ export default function VocabDetail() {
   }, [id]);
 
   async function handleSave() {
+    // toggle: add to or remove from private list depending on current state
     setMessage(null);
     try {
       const {
@@ -128,15 +219,28 @@ export default function VocabDetail() {
       } = await supabase.auth.getUser();
       const userId = user?.id;
       if (!userId) {
-        setMessage("Sign in to save to your private list.");
+        setMessage("Sign in to modify your private list.");
         return;
       }
-      const res = await addVocabToPrivateList(userId, id);
-      if (res?.error) {
-        setMessage("Could not save (server rejection).");
-        return;
+
+      if (isInPrivateList) {
+        // remove from private list only (do not remove meanings or public occurrences)
+        const res = await removeVocabFromPrivateList(userId, id, false);
+        if (res?.error) {
+          setMessage("Could not remove from private list (server rejection).");
+          return;
+        }
+        setIsInPrivateList(false);
+        setMessage("Removed from your private list.");
+      } else {
+        const res = await addVocabToPrivateList(userId, id);
+        if (res?.error) {
+          setMessage("Could not save (server rejection).");
+          return;
+        }
+        setIsInPrivateList(true);
+        setMessage("Saved to your private list.");
       }
-      setMessage("Saved to your private list.");
     } catch (err: unknown) {
       setMessage(errToMessage(err));
     }
@@ -370,7 +474,9 @@ export default function VocabDetail() {
 
       <div className="flex gap-2 mb-4">
         <Button size="sm" variant="outline" onClick={handleSave}>
-          Save to private list
+          {isInPrivateList
+            ? "Remove from private list"
+            : "Save to private list"}
         </Button>
         <Button
           size="sm"
@@ -525,6 +631,32 @@ export default function VocabDetail() {
                     )}
                   </div>
                 </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* RL items that use this vocabulary */}
+      <div className="border-t pt-4 mt-6">
+        <h2 className="font-semibold mb-2">
+          Reading / Listening items using this vocabulary
+        </h2>
+        {rlItemsUsingVocab.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No reading/listening items found.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {rlItemsUsingVocab.map((ri) => (
+              <li
+                key={ri.id}
+                className="flex items-center justify-between p-2 rounded border"
+              >
+                <div>{ri.title ?? "Unnamed Content"}</div>
+                <Button size="sm" asChild>
+                  <Link to={`/rl-items?id=${ri.id}`}>Open</Link>
+                </Button>
               </li>
             ))}
           </ul>
