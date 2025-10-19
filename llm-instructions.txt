@@ -200,7 +200,8 @@ consider the new db schema I created a l_items table and connect rl_items table 
 - in /vocabs page if user add a vocab already exist it gives 409 conflict error, that is okay, but if 409 error happens I want you to fetch that vocabulary by vocab text, then add p_vocab_list_items of that user.
 - I want you to improve RlItemDetail page, 1. "create reading material" functionality has 152 seconds (152_000) timeout when user sends request by that button so after timeout re-fetch current rl_item and fill required fields in page.
 - in VocabDetail page after meanings listed, I want new section for list of "rl_item"s used this vocabulary. use "rl_item_vocabs_and_meanings" table to find that items.
-
-New implementation request(s) for Coder LLM:
 - in VocabDetail there is "Save to private list" button. It is ignoring the user has already tat vocab in his private list. If user has the vocab, change text and behaviour for removing from personal list.
 - Also in VocabDetail there is "Save to private list" button. It is not aware of if the user has already that vocab in his private list. If user has the vocab, change text and behaviour for removing from personal list.
+
+New implementation request(s) for Coder LLM:
+- Previously we have been making request of resign audio url on demand (when user clicked on audio). Now I want resign audio url invoked when user enters RlItemDetail page, so until that request fulfilled disable audio play button. Bu I want client to have an extra feature, whenever a listening audio is created or resigned the link is valid for 1 hour (3600 seconds), so create a .env file place a variable for 3600, and whenever a listening audio is created or resigned keep that info in localstorage, and if audio url is not expired do not resign url on page load and just enable audio play.

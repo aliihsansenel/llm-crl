@@ -49,6 +49,10 @@ export default function RlItemDetail() {
   const id = idParam ? Number(idParam) : NaN;
   const navigate = useNavigate();
   const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+  // Presigned URL expiry seconds - configured via VITE_PRESIGNED_URL_EXPIRES (fallback 3600s)
+  const PRESIGNED_URL_EXPIRES = Number(
+    import.meta.env.VITE_PRESIGNED_URL_EXPIRES ?? 3600
+  );
 
   const [rlItem, setRlItem] = useState<RlItemRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -506,6 +510,28 @@ export default function RlItemDetail() {
     async function fetchPublicUrlForUid(uid: string | null) {
       if (!uid) return;
       try {
+        // First check localStorage for a cached signed URL entry
+        const key = `litem:${uid}`;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as {
+              public_url?: string;
+              expires_at?: number;
+            };
+            if (
+              parsed?.public_url &&
+              parsed.expires_at &&
+              parsed.expires_at > Date.now()
+            ) {
+              setLItemPublicUrl(parsed.public_url);
+              return;
+            }
+          } catch {
+            // ignore JSON parse errors and continue to fetch a fresh url
+          }
+        }
+
         const { data } = await supabase
           .from("l_items")
           .select("public_url")
@@ -514,6 +540,16 @@ export default function RlItemDetail() {
         if (!mounted) return;
         if (data?.public_url) {
           setLItemPublicUrl(data.public_url);
+          // cache it with expiry
+          try {
+            const cache = {
+              public_url: data.public_url,
+              expires_at: Date.now() + PRESIGNED_URL_EXPIRES * 1000,
+            };
+            localStorage.setItem(key, JSON.stringify(cache));
+          } catch {
+            // ignore localStorage set errors
+          }
         }
       } catch (e) {
         // non-fatal
@@ -623,6 +659,19 @@ export default function RlItemDetail() {
     if (!json?.ok || !json?.public_url) {
       throw new Error("Resign lambda returned no public_url");
     }
+
+    // Cache the signed URL in localStorage with an expiry so we don't resign on every page load.
+    try {
+      const key = `litem:${rlItem.l_item_id}`;
+      const cache = {
+        public_url: json.public_url,
+        expires_at: Date.now() + PRESIGNED_URL_EXPIRES * 1000,
+      };
+      localStorage.setItem(key, JSON.stringify(cache));
+    } catch {
+      // ignore localStorage errors
+    }
+
     return json.public_url;
   }
 
