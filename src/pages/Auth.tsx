@@ -9,7 +9,11 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { useNavigate } from "react-router-dom";
-import { signInWithEmail, signUpWithEmail } from "../lib/supabase";
+import {
+  signInWithEmail,
+  signUpWithEmail,
+  signInWithGoogle,
+} from "../lib/supabase";
 
 export default function AuthPage() {
   const [active, setActive] = useState<"login" | "signup">("login");
@@ -39,6 +43,29 @@ export default function AuthPage() {
       return;
     }
     setMessage("Signed up. Please check your email to confirm.");
+  }
+
+  async function handleGoogleOAuth() {
+    setMessage(null);
+    try {
+      const res = await signInWithGoogle();
+      // Normalize response type safely without using `any`
+      const typed = res as unknown as
+        | { error?: { message?: string } }
+        | undefined;
+      if (typed?.error) {
+        setMessage(typed.error.message ?? "Google sign-in failed");
+      }
+      // If redirect does not occur (popup) we may need to handle session, but typically redirect happens.
+    } catch (err: unknown) {
+      const messageText =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Google sign-in failed";
+      setMessage(messageText);
+    }
   }
 
   return (
@@ -73,6 +100,19 @@ export default function AuthPage() {
             />
             <Button type="submit">Login</Button>
           </form>
+
+          <div className="mt-4">
+            <div className="text-center text-sm text-muted-foreground mb-2">
+              Or continue with
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleGoogleOAuth}
+              className="w-full"
+            >
+              Sign in with Google
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="signup">
@@ -94,6 +134,19 @@ export default function AuthPage() {
             />
             <Button type="submit">Sign up</Button>
           </form>
+
+          <div className="mt-4">
+            <div className="text-center text-sm text-muted-foreground mb-2">
+              Or continue with
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleGoogleOAuth}
+              className="w-full"
+            >
+              Sign up with Google
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
 

@@ -314,6 +314,24 @@ export async function signInWithEmail(email: string, password: string) {
   return await supabase.auth.signInWithPassword({ email, password });
 }
 
+/**
+ * Sign in / Sign up with Google (OAuth)
+ * Supabase treats OAuth sign-in and sign-up via the same endpoint.
+ * Redirects back to the provided redirect URL (default: /vocabs).
+ */
+export async function signInWithGoogle(redirectTo?: string) {
+  const redirect =
+    redirectTo ??
+    (typeof window !== "undefined"
+      ? `${window.location.origin}/vocabs`
+      : undefined);
+  // supabase.auth.signInWithOAuth will trigger an OAuth redirect flow.
+  return await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: redirect ? { redirectTo: redirect } : undefined,
+  } as any);
+}
+
 export async function signOut() {
   return await supabase.auth.signOut();
 }
