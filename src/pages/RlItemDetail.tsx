@@ -58,7 +58,7 @@ export default function RlItemDetail() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
-  // left-side rows (3..4)
+  // left-side rows (3..10)
   const [rows, setRows] = useState<Row[]>([{}, {}, {}]);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -127,7 +127,7 @@ export default function RlItemDetail() {
             .select("vocab_id,meaning_id,vocabs(id,itself),meanings(id,itself)")
             .eq("rl_item_id", id)
             .order("id", { ascending: true })
-            .limit(4);
+            .limit(10);
           if (pairsErr) throw pairsErr;
 
           // pairsRes may include nested relation fields as arrays (vocabs: [{...}]) depending on response.
@@ -179,9 +179,9 @@ export default function RlItemDetail() {
               } as Row;
             });
 
-            // ensure minimum 3 rows and maximum 4
+            // ensure minimum 3 rows and maximum 10
             while (mapped.length < 3) mapped.push({});
-            setRows(mapped.slice(0, 4));
+            setRows(mapped.slice(0, 10));
           } else {
             // ensure default 3 empty rows if no pairs provided
             setRows([{}, {}, {}]);
@@ -310,7 +310,7 @@ export default function RlItemDetail() {
   }
 
   function addFourthRow() {
-    if (rows.length >= 4) return;
+    if (rows.length >= 10) return;
     setRows((prev) => [...prev, {}]);
   }
 
@@ -963,7 +963,7 @@ export default function RlItemDetail() {
                         Remove
                       </Button>
                     )}
-                    {idx === rows.length - 1 && rows.length < 4 && (
+                    {idx === rows.length - 1 && rows.length < 10 && (
                       <Button size="sm" onClick={addFourthRow}>
                         Add
                       </Button>
