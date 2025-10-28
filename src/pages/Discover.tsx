@@ -10,7 +10,9 @@ import supabase, {
   addVocabToPrivateList,
   addRlItemToPrivateList,
   getCachedUserId,
+  getPrivateRlListId,
   getPrivateVocabListId,
+  removeRlItemFromPrivateList,
   removeVocabFromPrivateList,
 } from "../lib/supabase";
 import { Link } from "react-router-dom";
@@ -38,6 +40,8 @@ type VocabList = {
   desc?: string | null;
   owner_id?: string | null;
   created_at?: string | null;
+  is_owner?: boolean;
+  is_subscribed?: boolean;
 };
 
 type RlItem = {
@@ -47,6 +51,7 @@ type RlItem = {
   owner_id?: string | null;
   delete_requested?: boolean | null;
   l_item_id?: string | null;
+  is_in_private_list?: boolean;
 };
 
 type RlList = {
@@ -55,6 +60,8 @@ type RlList = {
   desc?: string | null;
   owner_id?: string | null;
   created_at?: string | null;
+  is_owner?: boolean;
+  is_subscribed?: boolean;
 };
 
 // Helper to normalize unknown errors to a readable message
@@ -80,6 +87,12 @@ export default function DiscoverPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [expandedVocab, setExpandedVocab] = useState<number | null>(null);
   const [expandedList, setExpandedList] = useState<number | null>(null);
+  const [expandedRlItem, setExpandedRlItem] = useState<number | null>(null);
+  const [pendingVocabListId, setPendingVocabListId] = useState<number | null>(
+    null
+  );
+  const [pendingRlListId, setPendingRlListId] = useState<number | null>(null);
+  const [pendingRlItemId, setPendingRlItemId] = useState<number | null>(null);
 
   // Pagination state for each tab
   const [vocabsPage, setVocabsPage] = useState(0);
@@ -165,8 +178,36 @@ export default function DiscoverPage() {
         .order("created_at", { ascending: false })
         .range(start, end);
       if (error) throw error;
-      setLists(listsRes || []);
-      setListsTotal(count ?? (listsRes || []).length);
+
+      const base = (listsRes || []) as Omit<
+        VocabList,
+        "is_owner" | "is_subscribed"
+      >[];
+      const userId = await getCachedUserId();
+      let subscribed = new Set<number>();
+
+      if (userId && base.length) {
+        const ids = base.map((l) => l.id);
+        const { data: subsRes, error: subsErr } = await supabase
+          .from("vocab_lists_sub")
+          .select("vocab_list_id")
+          .eq("user_id", userId)
+          .in("vocab_list_id", ids);
+        if (!subsErr && subsRes) {
+          subscribed = new Set(
+            subsRes.map((r: { vocab_list_id: number }) => r.vocab_list_id)
+          );
+        }
+      }
+
+      const annotated = base.map((l) => ({
+        ...l,
+        is_owner: userId ? l.owner_id === userId : false,
+        is_subscribed: userId ? subscribed.has(l.id) : false,
+      }));
+
+      setLists(annotated);
+      setListsTotal(count ?? annotated.length);
     } catch (err: unknown) {
       setMessage(errMsg(err));
       setLists([]);
@@ -196,9 +237,34 @@ export default function DiscoverPage() {
         .order("created_at", { ascending: false })
         .range(start, end);
       if (error) throw error;
-      const arr = (rlRes || []) as RlItem[];
-      setRlItems(arr);
-      setRlItemsTotal(count ?? arr.length);
+      const base = (rlRes || []) as Omit<RlItem, "is_in_private_list">[];
+      const userId = await getCachedUserId();
+      let inPrivate = new Set<number>();
+
+      if (userId && base.length) {
+        const listId = await getPrivateRlListId(userId);
+        if (listId) {
+          const ids = base.map((r) => r.id);
+          const { data: pliRes, error: pliErr } = await supabase
+            .from("p_rl_list_items")
+            .select("rl_item_id")
+            .eq("p_rl_list_id", listId)
+            .in("rl_item_id", ids);
+          if (!pliErr && pliRes) {
+            inPrivate = new Set(
+              pliRes.map((r: { rl_item_id: number }) => r.rl_item_id)
+            );
+          }
+        }
+      }
+
+      const annotated = base.map((r) => ({
+        ...r,
+        is_in_private_list: inPrivate.has(r.id),
+      }));
+
+      setRlItems(annotated);
+      setRlItemsTotal(count ?? annotated.length);
     } catch (err: unknown) {
       console.warn("loadRlItems error", err);
       setRlItems([]);
@@ -225,8 +291,36 @@ export default function DiscoverPage() {
         .order("created_at", { ascending: false })
         .range(start, end);
       if (error) throw error;
-      setRlLists(listsRes || []);
-      setRlListsTotal(count ?? (listsRes || []).length);
+
+      const base = (listsRes || []) as Omit<
+        RlList,
+        "is_owner" | "is_subscribed"
+      >[];
+      const userId = await getCachedUserId();
+      let subscribed = new Set<number>();
+
+      if (userId && base.length) {
+        const ids = base.map((l) => l.id);
+        const { data: subsRes, error: subsErr } = await supabase
+          .from("rl_lists_sub")
+          .select("rl_list_id")
+          .eq("user_id", userId)
+          .in("rl_list_id", ids);
+        if (!subsErr && subsRes) {
+          subscribed = new Set(
+            subsRes.map((r: { rl_list_id: number }) => r.rl_list_id)
+          );
+        }
+      }
+
+      const annotated = base.map((l) => ({
+        ...l,
+        is_owner: userId ? l.owner_id === userId : false,
+        is_subscribed: userId ? subscribed.has(l.id) : false,
+      }));
+
+      setRlLists(annotated);
+      setRlListsTotal(count ?? annotated.length);
     } catch (err: unknown) {
       console.warn("loadRlLists error", err);
       setRlLists([]);
@@ -255,6 +349,7 @@ export default function DiscoverPage() {
 
   async function handleSaveRlItem(rlItemId: number) {
     setMessage(null);
+    setPendingRlItemId(rlItemId);
     try {
       const userId = await getCachedUserId();
       if (!userId) {
@@ -269,9 +364,16 @@ export default function DiscoverPage() {
         setMessage("Could not add to your private rl list (server rejection).");
         return;
       }
+      setRlItems((prev) =>
+        prev.map((item) =>
+          item.id === rlItemId ? { ...item, is_in_private_list: true } : item
+        )
+      );
       setMessage("Saved to your private rl list.");
     } catch (err: unknown) {
       setMessage(errMsg(err));
+    } finally {
+      setPendingRlItemId(null);
     }
   }
 
@@ -329,27 +431,135 @@ export default function DiscoverPage() {
     }
   }
 
-  async function handleSubscribe(listId: number) {
+  async function handleRemoveRlItem(rlItemId: number) {
     setMessage(null);
+    setPendingRlItemId(rlItemId);
     try {
       const userId = await getCachedUserId();
       if (!userId) {
-        setMessage("You must sign in to subscribe to lists.");
+        setMessage(
+          "You must sign in to remove reading/listening items from your private list."
+        );
         return;
       }
-      const res = await supabase
-        .from("vocab_lists_sub")
-        .insert({ user_id: userId, vocab_list_id: listId });
-      if (res.error) {
-        // RLS or FK rejection: show friendly message
-        console.warn("subscribe error", res.error);
-        setMessage("Could not subscribe (server rejection).");
+      const res = await removeRlItemFromPrivateList(userId, rlItemId);
+      if (res?.error) {
+        console.warn("remove rl_item from private list error", res.error);
+        setMessage(
+          "Could not remove from your private rl list (server rejection)."
+        );
         return;
       }
-      setMessage("Subscribed to the list.");
-      // Refresh lists subscription state if needed (not shown in this discovery view)
+      setRlItems((prev) =>
+        prev.map((item) =>
+          item.id === rlItemId ? { ...item, is_in_private_list: false } : item
+        )
+      );
+      setMessage("Removed from your private rl list.");
     } catch (err: unknown) {
       setMessage(errMsg(err));
+    } finally {
+      setPendingRlItemId(null);
+    }
+  }
+
+  async function handleToggleVocabListSubscription(list: VocabList) {
+    if (list.is_owner) return;
+    setMessage(null);
+    setPendingVocabListId(list.id);
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setMessage("You must sign in to manage subscriptions.");
+        return;
+      }
+
+      if (list.is_subscribed) {
+        const { error } = await supabase
+          .from("vocab_lists_sub")
+          .delete()
+          .match({ user_id: userId, vocab_list_id: list.id });
+        if (error) {
+          console.warn("unsubscribe vocab list error", error);
+          setMessage("Could not unsubscribe (server rejection).");
+          return;
+        }
+        setLists((prev) =>
+          prev.map((item) =>
+            item.id === list.id ? { ...item, is_subscribed: false } : item
+          )
+        );
+        setMessage("Unsubscribed from the list.");
+      } else {
+        const { error } = await supabase
+          .from("vocab_lists_sub")
+          .insert({ user_id: userId, vocab_list_id: list.id });
+        if (error && error.code !== "23505") {
+          console.warn("subscribe error", error);
+          setMessage("Could not subscribe (server rejection).");
+          return;
+        }
+        setLists((prev) =>
+          prev.map((item) =>
+            item.id === list.id ? { ...item, is_subscribed: true } : item
+          )
+        );
+        setMessage("Subscribed to the list.");
+      }
+    } catch (err: unknown) {
+      setMessage(errMsg(err));
+    } finally {
+      setPendingVocabListId(null);
+    }
+  }
+
+  async function handleToggleRlListSubscription(list: RlList) {
+    if (list.is_owner) return;
+    setMessage(null);
+    setPendingRlListId(list.id);
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setMessage("You must sign in to manage subscriptions.");
+        return;
+      }
+
+      if (list.is_subscribed) {
+        const { error } = await supabase
+          .from("rl_lists_sub")
+          .delete()
+          .match({ user_id: userId, rl_list_id: list.id });
+        if (error) {
+          console.warn("unsubscribe rl list error", error);
+          setMessage("Could not unsubscribe (server rejection).");
+          return;
+        }
+        setRlLists((prev) =>
+          prev.map((item) =>
+            item.id === list.id ? { ...item, is_subscribed: false } : item
+          )
+        );
+        setMessage("Unsubscribed from the rl list.");
+      } else {
+        const { error } = await supabase
+          .from("rl_lists_sub")
+          .insert({ user_id: userId, rl_list_id: list.id });
+        if (error && error.code !== "23505") {
+          console.warn("rl subscribe error", error);
+          setMessage("Could not subscribe (server rejection).");
+          return;
+        }
+        setRlLists((prev) =>
+          prev.map((item) =>
+            item.id === list.id ? { ...item, is_subscribed: true } : item
+          )
+        );
+        setMessage("Subscribed to the rl list.");
+      }
+    } catch (err: unknown) {
+      setMessage(errMsg(err));
+    } finally {
+      setPendingRlListId(null);
     }
   }
 
@@ -456,13 +666,16 @@ export default function DiscoverPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSubscribe(l.id)}
-                      >
-                        Subscribe
-                      </Button>
+                      {!l.is_owner && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleVocabListSubscription(l)}
+                          disabled={pendingVocabListId === l.id}
+                        >
+                          {l.is_subscribed ? "Unsubscribe" : "Subscribe"}
+                        </Button>
+                      )}
                       <Button size="sm" asChild>
                         <Link to={`/lists?id=${l.id}`}>Open</Link>
                       </Button>
@@ -504,13 +717,25 @@ export default function DiscoverPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSaveRlItem(r.id)}
-                      >
-                        Save
-                      </Button>
+                      {r.is_in_private_list ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveRlItem(r.id)}
+                          disabled={pendingRlItemId === r.id}
+                        >
+                          Remove from Saved
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSaveRlItem(r.id)}
+                          disabled={pendingRlItemId === r.id}
+                        >
+                          Save
+                        </Button>
+                      )}
                       <Button size="sm" asChild>
                         <Link to={`/rl-items?id=${r.id}`}>Open</Link>
                       </Button>
@@ -518,13 +743,21 @@ export default function DiscoverPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() =>
-                          setExpandedVocab(expandedVocab === r.id ? null : r.id)
+                          setExpandedRlItem(
+                            expandedRlItem === r.id ? null : r.id
+                          )
                         }
                       >
-                        {expandedVocab === r.id ? "Hide" : "Details"}
+                        {expandedRlItem === r.id ? "Hide" : "Details"}
                       </Button>
                     </div>
                   </div>
+
+                  {expandedRlItem === r.id && (
+                    <div className="mt-3 text-sm text-muted-foreground">
+                      Preview not available yet.
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -546,37 +779,16 @@ export default function DiscoverPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          setMessage(null);
-                          try {
-                            const userId = await getCachedUserId();
-                            if (!userId) {
-                              setMessage(
-                                "You must sign in to subscribe to lists."
-                              );
-                              return;
-                            }
-                            const res = await supabase
-                              .from("rl_lists_sub")
-                              .insert({ user_id: userId, rl_list_id: l.id });
-                            if (res.error) {
-                              console.warn("rl subscribe error", res.error);
-                              setMessage(
-                                "Could not subscribe (server rejection)."
-                              );
-                              return;
-                            }
-                            setMessage("Subscribed to the rl list.");
-                          } catch (err: unknown) {
-                            setMessage(errMsg(err));
-                          }
-                        }}
-                      >
-                        Subscribe
-                      </Button>
+                      {!l.is_owner && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleRlListSubscription(l)}
+                          disabled={pendingRlListId === l.id}
+                        >
+                          {l.is_subscribed ? "Unsubscribe" : "Subscribe"}
+                        </Button>
+                      )}
                       <Button size="sm" asChild>
                         <Link to={`/rl-lists?id=${l.id}`}>Open</Link>
                       </Button>

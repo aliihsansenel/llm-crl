@@ -511,6 +511,27 @@ export async function addRlItemToPrivateList(userId: string, rlItemId: number) {
   return { data: res.data };
 }
 
+export async function removeRlItemFromPrivateList(
+  userId: string,
+  rlItemId: number
+) {
+  const listId = await getPrivateRlListId(userId);
+  if (!listId) {
+    return { error: new Error("private rl list not found") };
+  }
+
+  const res = await supabase
+    .from("p_rl_list_items")
+    .delete()
+    .match({ p_rl_list_id: listId, rl_item_id: rlItemId });
+
+  if (res.error) {
+    return { error: res.error };
+  }
+
+  return { ok: true };
+}
+
 // Helper: create a new global vocab (owned by user) and add it into user's private list
 export async function createVocabAndAddToPrivateList(
   userId: string,
