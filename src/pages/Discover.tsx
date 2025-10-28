@@ -10,6 +10,8 @@ import supabase, {
   addVocabToPrivateList,
   addRlItemToPrivateList,
   getCachedUserId,
+  getPrivateVocabListId,
+  removeVocabFromPrivateList,
 } from "../lib/supabase";
 import { Link } from "react-router-dom";
 
@@ -27,6 +29,7 @@ type Vocab = {
   id: number;
   itself: string;
   created_at?: string | null;
+  is_in_user_list?: boolean;
 };
 
 type VocabList = {
@@ -94,6 +97,8 @@ export default function DiscoverPage() {
     try {
       const start = vocabsPage * PAGE_SIZE;
       const end = start + PAGE_SIZE - 1;
+
+      // 1) load page of vocabs with count
       const {
         data: vocabsRes,
         error,
@@ -103,11 +108,37 @@ export default function DiscoverPage() {
         .select("id,itself,created_at", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(start, end);
+
       if (error) throw error;
       const arr = (vocabsRes || []) as Vocab[];
-      // keep ordering deterministic (latest modified/created first)
-      setVocabs(arr);
-      setVocabsTotal(count ?? arr.length);
+
+      // 2) determine if current user has these vocabs in their private list
+      const userId = await getCachedUserId();
+      let isInSet = new Set<number>();
+      if (userId) {
+        const listId = await getPrivateVocabListId(userId);
+        if (listId && arr.length) {
+          const ids = arr.map((v) => v.id);
+          const { data: pliRes, error: pliErr } = await supabase
+            .from("p_vocab_list_items")
+            .select("vocab_id")
+            .in("vocab_id", ids)
+            .eq("p_vocab_list_id", listId);
+          if (!pliErr && pliRes) {
+            const rows = pliRes as Array<{ vocab_id: number }>;
+            isInSet = new Set(rows.map((r) => r.vocab_id));
+          }
+        }
+      }
+
+      // annotate vocabs with is_in_user_list
+      const annotated = arr.map((v) => ({
+        ...v,
+        is_in_user_list: isInSet.has(v.id),
+      }));
+
+      setVocabs(annotated as Vocab[]);
+      setVocabsTotal(count ?? annotated.length);
     } catch (err: unknown) {
       setMessage(errMsg(err));
       setVocabs([]);
@@ -259,7 +290,40 @@ export default function DiscoverPage() {
         setMessage("Could not add to private list (server rejection).");
         return;
       }
+      // optimistically update local vocabs state
+      setVocabs((prev) =>
+        prev.map((v) =>
+          v.id === vocabId ? { ...v, is_in_user_list: true } : v
+        )
+      );
       setMessage("Saved to your private list.");
+    } catch (err: unknown) {
+      setMessage(errMsg(err));
+    }
+  }
+
+  async function handleRemoveVocab(vocabId: number) {
+    setMessage(null);
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setMessage("You must sign in to remove vocab from your private list.");
+        return;
+      }
+      // remove from private list only (do not attempt to delete globally)
+      const res = await removeVocabFromPrivateList(userId, vocabId, false);
+      if (res?.error) {
+        console.warn("remove from private list error", res.error);
+        setMessage("Could not remove from private list (server rejection).");
+        return;
+      }
+      // update local state to reflect removal without re-fetch
+      setVocabs((prev) =>
+        prev.map((v) =>
+          v.id === vocabId ? { ...v, is_in_user_list: false } : v
+        )
+      );
+      setMessage("Removed from your private list.");
     } catch (err: unknown) {
       setMessage(errMsg(err));
     }
@@ -333,13 +397,23 @@ export default function DiscoverPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSaveVocab(v.id)}
-                      >
-                        Save
-                      </Button>
+                      {v.is_in_user_list ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveVocab(v.id)}
+                        >
+                          Remove from Saved
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSaveVocab(v.id)}
+                        >
+                          Save
+                        </Button>
+                      )}
                       <Button size="sm" asChild>
                         <Link to={`/vocabs?id=${v.id}`}>Open</Link>
                       </Button>
