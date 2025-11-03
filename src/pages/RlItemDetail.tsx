@@ -7,6 +7,7 @@ import supabase, {
 } from "../lib/supabase";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
+import { Checkbox } from "../components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -69,6 +70,26 @@ export default function RlItemDetail() {
   const [meaningsForSelectedVocab, setMeaningsForSelectedVocab] = useState<
     { id: number; itself: string }[]
   >([]);
+
+  // "Filter to unused vocabulary" feature state + memoization cache
+  const [filterUnused, setFilterUnused] = useState(false);
+  // cached unused results keyed by user id to avoid refetching
+  const unusedCacheRef = useRef<
+    Record<
+      string,
+      {
+        vocabs: {
+          id: number;
+          itself: string;
+          meanings: { id: number; itself: string }[];
+        }[];
+      }
+    >
+  >({});
+  const [unusedVocabs, setUnusedVocabs] = useState<
+    { id: number; itself: string; meanings: { id: number; itself: string }[] }[]
+  >([]);
+  const [loadingUnused, setLoadingUnused] = useState(false);
 
   const [instructions, setInstructions] = useState("");
   const [creating, setCreating] = useState(false);
@@ -282,6 +303,29 @@ export default function RlItemDetail() {
         return copy;
       });
 
+      // If filterUnused is active and we have an unused mapping cached in memory,
+      // prefer that local result to avoid extra network requests.
+      if (filterUnused) {
+        const userId = await getCachedUserId();
+        const cacheForUser = userId
+          ? (unusedCacheRef.current[userId] ?? null)
+          : null;
+        if (cacheForUser) {
+          const entry = cacheForUser.vocabs.find((v) => v.id === vocabId);
+          setMeaningsForSelectedVocab(entry?.meanings ?? []);
+          return;
+        }
+
+        // If we don't have a cached mapping yet but the component-level unusedVocabs exists,
+        // use that as a fallback.
+        const found = unusedVocabs.find((v) => v.id === vocabId);
+        if (found) {
+          setMeaningsForSelectedVocab(found.meanings);
+          return;
+        }
+        // otherwise fallthrough to fetch (server-side) - this is rare because fetchUnusedVocabs is invoked when filter toggled.
+      }
+
       const { data: mRes, error: mErr } = await supabase
         .from("meanings")
         .select("id,itself")
@@ -294,6 +338,129 @@ export default function RlItemDetail() {
       );
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Fetch unused vocab/meaning pairs for current user and memoize the result.
+  async function fetchUnusedVocabs() {
+    setLoadingUnused(true);
+    try {
+      const userId = await getCachedUserId();
+      if (!userId) {
+        setUnusedVocabs([]);
+        return;
+      }
+
+      // If we have a cached entry for this user, use it
+      if (unusedCacheRef.current[userId]) {
+        setUnusedVocabs(unusedCacheRef.current[userId].vocabs);
+        return;
+      }
+
+      // Ensure we have private vocab IDs. Prefer existing privateVocabs state,
+      // otherwise fetch the private list and its items (same as initial load).
+      let vocabIds: number[] = privateVocabs.map((v) => v.id);
+      if (vocabIds.length === 0) {
+        // Try to fetch private list id and its items
+        const { data: pList } = await supabase
+          .from("p_vocab_lists")
+          .select("id")
+          .eq("owner_id", userId)
+          .limit(1)
+          .maybeSingle();
+        const listId = pList?.id;
+        if (listId) {
+          const { data: itemsRes } = await supabase
+            .from("p_vocab_list_items")
+            .select("vocab_id")
+            .eq("p_vocab_list_id", listId)
+            .order("vocab_id", { ascending: false })
+            .limit(1000);
+          vocabIds = (itemsRes || []).map(
+            (r: { vocab_id: number }) => r.vocab_id
+          );
+        }
+      }
+
+      if (!vocabIds.length) {
+        setUnusedVocabs([]);
+        // cache empty result
+        unusedCacheRef.current[userId] = { vocabs: [] };
+        return;
+      }
+
+      // Fetch meanings owned by the user for these vocabs
+      const { data: meanings } = await supabase
+        .from("meanings")
+        .select("id,itself,vocab_id")
+        .in("vocab_id", vocabIds)
+        .eq("owner_id", userId)
+        .limit(1000);
+
+      const meaningList = meanings || [];
+      const meaningIds = meaningList.map((m) => m.id);
+
+      // Fetch usages for these meanings in rl_item_vocabs_and_meanings
+      let usages: { meaning_id: number }[] = [];
+      if (meaningIds.length) {
+        const { data: u } = await supabase
+          .from("rl_item_vocabs_and_meanings")
+          .select("meaning_id")
+          .in("meaning_id", meaningIds)
+          .limit(10000);
+        usages = u || [];
+      }
+
+      const usedSet = new Set((usages || []).map((u) => u.meaning_id));
+      const unusedMeanings = (meaningList || []).filter(
+        (m) => !usedSet.has(m.id)
+      );
+
+      // group unused meanings by vocab_id and prepare vocabs list with their unused meanings
+      const byVocab = new Map<
+        number,
+        {
+          id: number;
+          itself: string;
+          meanings: { id: number; itself: string }[];
+        }
+      >();
+      // fetch vocab texts for vocabIds (only those that have unused meanings)
+      const vocabIdsWithUnused = Array.from(
+        new Set(unusedMeanings.map((m) => m.vocab_id))
+      );
+      const vocabsMap = new Map<number, { id: number; itself: string }>();
+      if (vocabIdsWithUnused.length) {
+        const { data: vocabs } = await supabase
+          .from("vocabs")
+          .select("id,itself")
+          .in("id", vocabIdsWithUnused)
+          .limit(1000);
+        (vocabs || []).forEach((v) => vocabsMap.set(v.id, v));
+      }
+
+      for (const m of unusedMeanings) {
+        const vId = m.vocab_id;
+        const v = vocabsMap.get(vId) || { id: vId, itself: "Unknown" };
+        const entry = byVocab.get(vId) || {
+          id: v.id,
+          itself: v.itself,
+          meanings: [] as { id: number; itself: string }[],
+        };
+        entry.meanings.push({ id: m.id, itself: m.itself });
+        byVocab.set(vId, entry);
+      }
+
+      const result = Array.from(byVocab.values());
+      // cache result
+      unusedCacheRef.current[userId] = { vocabs: result };
+      setUnusedVocabs(result);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("failed to fetch unused vocabs", e);
+      setUnusedVocabs([]);
+    } finally {
+      setLoadingUnused(false);
     }
   }
 
@@ -1005,30 +1172,101 @@ export default function RlItemDetail() {
           <div className="mb-2 font-semibold">Select Vocab / Meanings</div>
 
           <div className="mb-3">
-            <div className="text-sm mb-1">Private Vocabs (last 30)</div>
-            <ul className="space-y-1 max-h-64 overflow-auto">
-              {privateVocabs.map((v) => (
-                <li
-                  key={v.id}
-                  className="flex items-center justify-between p-2 rounded hover:bg-muted"
-                >
-                  <div>{v.itself}</div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => selectVocabForActiveRow(v.id, v.itself)}
-                    >
-                      Select
-                    </Button>
+            <div className="flex items-center justify-between">
+              <div className="text-sm mb-1">Private Vocabs (last 30)</div>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={filterUnused}
+                  onCheckedChange={(v) => {
+                    const val = Boolean(v);
+                    setFilterUnused(val);
+                    if (val) {
+                      // when enabling, fetch and memoize unused list if needed
+                      fetchUnusedVocabs();
+                    }
+                  }}
+                />
+                <span>Filter to unused vocabulary</span>
+              </label>
+            </div>
+
+            {/* If filter is active show unused vocabs + their unused meanings */}
+            {filterUnused ? (
+              <div className="space-y-2 max-h-64 overflow-auto">
+                {loadingUnused && <div className="text-xs">Loading...</div>}
+                {!loadingUnused && !unusedVocabs.length && (
+                  <div className="text-xs text-muted-foreground">
+                    No unused vocabulary/meanings found.
                   </div>
-                </li>
-              ))}
-              {!privateVocabs.length && (
-                <li className="text-xs text-muted-foreground">
-                  No private vocabs found.
-                </li>
-              )}
-            </ul>
+                )}
+                {!loadingUnused &&
+                  unusedVocabs.map((v) => (
+                    <div
+                      key={v.id}
+                      className="p-2 rounded border hover:bg-muted"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">{v.itself}</div>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        {v.meanings.map((m) => (
+                          <div
+                            key={m.id}
+                            className="flex items-center justify-between p-1 rounded"
+                          >
+                            <div className="text-sm">{m.itself}</div>
+                            <div>
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  // select vocab then pre-select meaning so user needs only one click
+                                  (async () => {
+                                    try {
+                                      await selectVocabForActiveRow(
+                                        v.id,
+                                        v.itself
+                                      );
+                                      selectMeaningForRow(m.id, m.itself);
+                                    } catch {
+                                      // ignore - selectVocabForActiveRow handles messaging
+                                    }
+                                  })();
+                                }}
+                              >
+                                Select
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <ul className="space-y-1 max-h-64 overflow-auto">
+                {privateVocabs.map((v) => (
+                  <li
+                    key={v.id}
+                    className="flex items-center justify-between p-2 rounded hover:bg-muted"
+                  >
+                    <div>{v.itself}</div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => selectVocabForActiveRow(v.id, v.itself)}
+                      >
+                        Select
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+                {!privateVocabs.length && (
+                  <li className="text-xs text-muted-foreground">
+                    No private vocabs found.
+                  </li>
+                )}
+              </ul>
+            )}
           </div>
 
           <div>
