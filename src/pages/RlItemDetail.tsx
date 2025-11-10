@@ -375,7 +375,7 @@ export default function RlItemDetail() {
             .select("vocab_id")
             .eq("p_vocab_list_id", listId)
             .order("vocab_id", { ascending: false })
-            .limit(1000);
+            .limit(100);
           vocabIds = (itemsRes || []).map(
             (r: { vocab_id: number }) => r.vocab_id
           );
@@ -389,15 +389,25 @@ export default function RlItemDetail() {
         return;
       }
 
-      // Fetch meanings owned by the user for these vocabs
-      const { data: meanings } = await supabase
-        .from("meanings")
-        .select("id,itself,vocab_id")
-        .in("vocab_id", vocabIds)
-        .eq("owner_id", userId)
-        .limit(1000);
+      // Fetch meanings owned by the user for these vocabs via RPC.
+      // The RPC returns items shaped like:
+      // [{ vocab_itself: string, meaning: string, meaning_id: number }, ...]
+      type RpcItem = {
+        vocab_itself: string;
+        meaning: string;
+        meaning_id: number;
+      };
+      const { data: meanings } = await supabase.rpc(
+        "get_unused_vocab_meanings"
+      );
 
-      const meaningList = meanings || [];
+      const rawList = (meanings || []) as RpcItem[];
+      // Normalize RPC response to a consistent shape used below.
+      const meaningList = rawList.map((r) => ({
+        id: Number(r.meaning_id),
+        itself: String(r.meaning),
+        vocab_itself: String(r.vocab_itself),
+      }));
       const meaningIds = meaningList.map((m) => m.id);
 
       // Fetch usages for these meanings in rl_item_vocabs_and_meanings
@@ -407,51 +417,52 @@ export default function RlItemDetail() {
           .from("rl_item_vocabs_and_meanings")
           .select("meaning_id")
           .in("meaning_id", meaningIds)
-          .limit(10000);
-        usages = u || [];
+          .limit(100);
+        usages = (u || []) as { meaning_id: number }[];
       }
 
-      const usedSet = new Set((usages || []).map((u) => u.meaning_id));
-      const unusedMeanings = (meaningList || []).filter(
-        (m) => !usedSet.has(m.id)
-      );
+      const usedSet = new Set(usages.map((u) => u.meaning_id));
+      const unusedMeanings = meaningList.filter((m) => !usedSet.has(m.id));
 
-      // group unused meanings by vocab_id and prepare vocabs list with their unused meanings
-      const byVocab = new Map<
-        number,
+      // Group unused meanings by vocab text (vocab_itself). RPC does not return vocab id,
+      // so fetch vocabs by text to obtain ids when possible.
+      const byVocabName = new Map<
+        string,
         {
           id: number;
           itself: string;
           meanings: { id: number; itself: string }[];
         }
       >();
-      // fetch vocab texts for vocabIds (only those that have unused meanings)
-      const vocabIdsWithUnused = Array.from(
-        new Set(unusedMeanings.map((m) => m.vocab_id))
+
+      const vocabNames = Array.from(
+        new Set(unusedMeanings.map((m) => m.vocab_itself))
       );
-      const vocabsMap = new Map<number, { id: number; itself: string }>();
-      if (vocabIdsWithUnused.length) {
+      const vocabsMapByName = new Map<string, { id: number; itself: string }>();
+      if (vocabNames.length) {
         const { data: vocabs } = await supabase
           .from("vocabs")
           .select("id,itself")
-          .in("id", vocabIdsWithUnused)
-          .limit(1000);
-        (vocabs || []).forEach((v) => vocabsMap.set(v.id, v));
+          .in("itself", vocabNames)
+          .limit(100);
+        (vocabs || []).forEach((v: { id: number; itself: string }) =>
+          vocabsMapByName.set(v.itself, v)
+        );
       }
 
       for (const m of unusedMeanings) {
-        const vId = m.vocab_id;
-        const v = vocabsMap.get(vId) || { id: vId, itself: "Unknown" };
-        const entry = byVocab.get(vId) || {
+        const name = m.vocab_itself;
+        const v = vocabsMapByName.get(name) || { id: 0, itself: name };
+        const entry = byVocabName.get(name) || {
           id: v.id,
           itself: v.itself,
           meanings: [] as { id: number; itself: string }[],
         };
         entry.meanings.push({ id: m.id, itself: m.itself });
-        byVocab.set(vId, entry);
+        byVocabName.set(name, entry);
       }
 
-      const result = Array.from(byVocab.values());
+      const result = Array.from(byVocabName.values());
       // cache result
       unusedCacheRef.current[userId] = { vocabs: result };
       setUnusedVocabs(result);
