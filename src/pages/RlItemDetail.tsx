@@ -1088,13 +1088,15 @@ export default function RlItemDetail() {
             : `Listening id: ${rlItem.l_item_id}`
           : "No listening material yet"}
         <div className="mt-3 flex items-center gap-3">
-          <Button
-            size="sm"
-            onClick={handleCreateListening}
-            disabled={creatingListening || rlItem.l_item_id != null}
-          >
-            {creatingListening ? "Starting..." : "Create listening material"}
-          </Button>
+          {(rlItem.l_item_id === null || rlItem.l_item_id === ZERO_UUID) && (
+            <Button
+              size="sm"
+              onClick={handleCreateListening}
+              disabled={creatingListening || rlItem.l_item_id === ZERO_UUID}
+            >
+              {creatingListening ? "Starting..." : "Create listening material"}
+            </Button>
+          )}
 
           {lItemPublicUrl && (
             <div className="flex-1 flex items-center gap-3">
@@ -1132,7 +1134,7 @@ export default function RlItemDetail() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-sm font-medium">Row {idx + 1}</div>
                   <div className="flex gap-2">
-                    {rows.length > 3 && (
+                    {rows.length > 3 && rlItem.l_item_id == null && (
                       <Button
                         size="sm"
                         variant="destructive"
@@ -1155,24 +1157,29 @@ export default function RlItemDetail() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setActiveIndex(idx)}>
-                    Edit Row
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setRows((prev) => {
-                        const copy = prev.slice();
-                        copy[idx] = {};
-                        return copy;
-                      });
-                      // if clearing the active row, also clear meanings list if this was active
-                      if (idx === activeIndex) setMeaningsForSelectedVocab([]);
-                    }}
-                  >
-                    Clear
-                  </Button>
+                  {rlItem.l_item_id == null && (
+                    <>
+                      <Button size="sm" onClick={() => setActiveIndex(idx)}>
+                        Edit Row
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setRows((prev) => {
+                            const copy = prev.slice();
+                            copy[idx] = {};
+                            return copy;
+                          });
+                          // if clearing the active row, also clear meanings list if this was active
+                          if (idx === activeIndex)
+                            setMeaningsForSelectedVocab([]);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -1354,16 +1361,19 @@ export default function RlItemDetail() {
             setInstructions((e.target as HTMLTextAreaElement).value)
           }
           placeholder="Enter instructions for the reading material"
+          disabled={rlItem.l_item_id != null}
         />
       </div>
 
       <div className="flex gap-2 mt-4">
-        <Button
-          onClick={handleCreateReading}
-          disabled={!allRowsValid() || creating || pageLevelId == null}
-        >
-          {creating ? "Working..." : "Create Reading material"}
-        </Button>
+        {rlItem.l_item_id == null && (
+          <Button
+            onClick={handleCreateReading}
+            disabled={!allRowsValid() || creating || pageLevelId == null}
+          >
+            {creating ? "Working..." : "Create Reading material"}
+          </Button>
+        )}
         <Button variant="destructive" onClick={handleDeleteClick}>
           {rlItem.l_item_id ? "Delete request" : "Delete"}
         </Button>
