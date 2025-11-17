@@ -1132,7 +1132,7 @@ export default function RlItemDetail() {
                 className={`p-3 rounded border ${idx === activeIndex ? "bg-accent/10" : ""}`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-medium">Row {idx + 1}</div>
+                  <div className="text-sm font-medium">Pair {idx + 1}</div>
                   <div className="flex gap-2">
                     {rows.length > 3 && rlItem.l_item_id == null && (
                       <Button
@@ -1143,11 +1143,13 @@ export default function RlItemDetail() {
                         Remove
                       </Button>
                     )}
-                    {idx === rows.length - 1 && rows.length < 10 && (
-                      <Button size="sm" onClick={addFourthRow}>
-                        Add
-                      </Button>
-                    )}
+                    {idx === rows.length - 1 &&
+                      rows.length < 10 &&
+                      rlItem.l_item_id == null && (
+                        <Button size="sm" onClick={addFourthRow}>
+                          Add
+                        </Button>
+                      )}
                   </div>
                 </div>
 

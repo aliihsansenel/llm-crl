@@ -330,7 +330,7 @@ function Layout() {
                     </NavigationMenuLink>
                     <NavigationMenuLink asChild>
                       <Link to="/rl-items" className="text-sm">
-                        Reading
+                        Reading/Listening
                       </Link>
                     </NavigationMenuLink>
                     <NavigationMenuLink asChild>
