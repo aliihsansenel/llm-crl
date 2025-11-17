@@ -322,7 +322,7 @@ function Layout() {
                 </button>
                 {/* Navigation menu placed at top */}
                 <NavigationMenu>
-                  <NavigationMenuList className="flex gap-2">
+                  <NavigationMenuList className="flex gap-2 top-nav-links">
                     <NavigationMenuLink asChild>
                       <Link to="/vocabs" className="text-sm">
                         My Vocabulary
