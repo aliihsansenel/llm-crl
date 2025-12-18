@@ -14,5 +14,16 @@ Click to go to the [Web app](https://llm-crl.netlify.app/).
     - Procedures
   - Edge Functions
   - Cron jobs
-- AWS Lambda Functions
+  - Google OAuth
+- AWS
+  - Lambda Functions
+  - S3 Bucket Storage
 - Frontend codebase built by RooCode using GPT-5 mini
+
+## Screenshots
+
+### Create Reading/Listening Material Page
+![Create Reading/Listening Material Page](public/screenshots/ss-create-rl.png)
+
+### Personal Vacabulary Page
+![Personal Vacabulary Page](public/screenshots/ss-vocabs.png)
