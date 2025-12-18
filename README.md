@@ -7,11 +7,12 @@ Click to go to the [Web app](https://llm-crl.netlify.app/).
 - React.js with TypeScript
 - shadcn-ui
 - Supabase
+  - Authentication
   - PostgreSQL
-    - Authentication
     - Authorization with RLS policies and Column-level security policies.
     - 20 Tables
     - Procedures
   - Edge Functions
+  - Cron jobs
 - AWS Lambda Functions
 - Frontend codebase built by RooCode using GPT-5 mini
