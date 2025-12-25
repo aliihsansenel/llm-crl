@@ -288,20 +288,36 @@ export default function RlItemDetail() {
   }, [id]);
 
   // select a vocab to populate the active row and load meanings
+  // select a vocab to populate the active row and load meanings
+  // returns the index that was assigned (so callers can immediately target it)
   async function selectVocabForActiveRow(vocabId: number, vocabText: string) {
     setMessage(null);
     try {
-      setRows((prev) => {
-        const copy = prev.slice();
-        copy[activeIndex] = {
-          ...copy[activeIndex],
-          vocabId,
-          vocabText,
-          meaningId: undefined,
-          meaningText: undefined,
-        };
-        return copy;
-      });
+      // compute target index from current rows synchronously
+      const copy = rows.slice();
+      let targetIndex = activeIndex;
+      const activeRow = copy[activeIndex];
+      if (
+        activeRow &&
+        typeof activeRow.vocabId === "number" &&
+        typeof activeRow.meaningId === "number"
+      ) {
+        const firstEmpty = copy.findIndex(
+          (r) => r.meaningId == null || typeof r.meaningId !== "number"
+        );
+        if (firstEmpty !== -1) targetIndex = firstEmpty;
+      }
+
+      copy[targetIndex] = {
+        ...copy[targetIndex],
+        vocabId,
+        vocabText,
+        meaningId: undefined,
+        meaningText: undefined,
+      };
+
+      setRows(copy);
+      setActiveIndex(targetIndex);
 
       // If filterUnused is active and we have an unused mapping cached in memory,
       // prefer that local result to avoid extra network requests.
@@ -313,15 +329,13 @@ export default function RlItemDetail() {
         if (cacheForUser) {
           const entry = cacheForUser.vocabs.find((v) => v.id === vocabId);
           setMeaningsForSelectedVocab(entry?.meanings ?? []);
-          return;
+          return targetIndex;
         }
 
-        // If we don't have a cached mapping yet but the component-level unusedVocabs exists,
-        // use that as a fallback.
         const found = unusedVocabs.find((v) => v.id === vocabId);
         if (found) {
           setMeaningsForSelectedVocab(found.meanings);
-          return;
+          return targetIndex;
         }
         // otherwise fallthrough to fetch (server-side) - this is rare because fetchUnusedVocabs is invoked when filter toggled.
       }
@@ -336,8 +350,11 @@ export default function RlItemDetail() {
       setMeaningsForSelectedVocab(
         (mRes || []) as { id: number; itself: string }[]
       );
+
+      return targetIndex;
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : String(err));
+      return activeIndex;
     }
   }
 
@@ -483,13 +500,42 @@ export default function RlItemDetail() {
         meaningId,
         meaningText,
       };
+
+      // After selecting a meaning for the current active row, automatically
+      // advance the activeIndex to the first empty row (least id) so the
+      // next vocab/meaning selection doesn't require clicking "Edit Row".
+      const nextEmpty = copy.findIndex(
+        (r, i) =>
+          i !== activeIndex &&
+          (r.meaningId == null || typeof r.meaningId !== "number")
+      );
+      if (nextEmpty !== -1) {
+        // schedule setting active index synchronously here (safe to call)
+        setActiveIndex(nextEmpty);
+      }
+
       return copy;
     });
   }
 
   function addFourthRow() {
     if (rows.length >= 10) return;
-    setRows((prev) => [...prev, {}]);
+    // Add a new empty row and, if the currently active row is already filled,
+    // move focus to the first empty row (least id) so the user can continue
+    // selecting without clicking Edit Row.
+    const newRows = [...rows, {}];
+    setRows(newRows);
+    const activeRow = rows[activeIndex];
+    if (
+      activeRow &&
+      typeof activeRow.vocabId === "number" &&
+      typeof activeRow.meaningId === "number"
+    ) {
+      const firstEmpty = newRows.findIndex(
+        (r) => r.meaningId == null || typeof r.meaningId !== "number"
+      );
+      if (firstEmpty !== -1) setActiveIndex(firstEmpty);
+    }
   }
 
   function removeRow(index: number) {
@@ -1129,7 +1175,7 @@ export default function RlItemDetail() {
             {rows.map((r, idx) => (
               <div
                 key={idx}
-                className={`p-3 rounded border ${idx === activeIndex ? "bg-accent/10" : ""}`}
+                className={`p-3 rounded ${idx === activeIndex ? "bg-accent/10 border-2 border-accent-700" : "border"}`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-sm font-medium">Pair {idx + 1}</div>
