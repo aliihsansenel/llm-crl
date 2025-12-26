@@ -27,3 +27,11 @@ Click to go to the [Web app](https://llm-crl.netlify.app/).
 
 ### Personal Vacabulary Page
 ![Personal Vacabulary Page](public/screenshots/ss-vocabs.png)
+
+### Supabase
+
+## PostgreSQL DB Tables
+![PostgreSQL DB Tables ](public/screenshots/db-tables.png)
+
+## PostgreSQL DB Procedures
+![PostgreSQL DB Tables ](public/screenshots/db-procedures.png)
