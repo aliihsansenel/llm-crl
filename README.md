@@ -33,5 +33,11 @@ Click to go to the [Web app](https://llm-crl.netlify.app/).
 #### PostgreSQL DB Tables
 ![PostgreSQL DB Tables ](public/screenshots/db-tables.png)
 
+#### PostgreSQL DB Table View Example
+![PostgreSQL DB Table View Example  ](public/screenshots/table-view.png)
+
 #### PostgreSQL DB Procedures
 ![PostgreSQL DB Tables ](public/screenshots/db-procedures.png)
+
+#### PostgreSQL RLS Policy Example
+![PostgreSQL RLS Policy Example ](public/screenshots/rls-policy.png)
